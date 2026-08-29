@@ -41,12 +41,12 @@ Ensure all code is committed and pushed to your GitHub repository ([`https://git
 2. Connect your GitHub account and select `Fluent-Health-Care-MR`.
 
 ### 3. Add Environment Variables in Vercel
-In Vercel project configuration, expand **Environment Variables** and add the following two key-value pairs:
+In Vercel project configuration, expand **Environment Variables** and add your Supabase credentials:
 
 | Key | Value |
 | :--- | :--- |
-| `VITE_SUPABASE_URL` | `https://xzzkpykemifbbsyxaaew.supabase.co` |
-| `VITE_SUPABASE_ANON_KEY` | `sb_publishable_1Tiy8-SH8o0WiqZM7sN3MA_RxCdhqzK` |
+| `VITE_SUPABASE_URL` | `YOUR_SUPABASE_PROJECT_URL` |
+| `VITE_SUPABASE_ANON_KEY` | `YOUR_SUPABASE_ANON_KEY` |
 
 ### 4. Deploy!
 Click **Deploy**. Vercel will automatically build the Vite SPA and route requests correctly via [`vercel.json`](vercel.json).
@@ -69,8 +69,8 @@ cp .env.example .env
 ```
 Edit `.env`:
 ```env
-VITE_SUPABASE_URL=https://xzzkpykemifbbsyxaaew.supabase.co
-VITE_SUPABASE_ANON_KEY=sb_publishable_1Tiy8-SH8o0WiqZM7sN3MA_RxCdhqzK
+VITE_SUPABASE_URL=YOUR_SUPABASE_PROJECT_URL
+VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
 ```
 
 ### 3. Run Development Server
