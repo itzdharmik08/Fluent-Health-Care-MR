@@ -1,0 +1,788 @@
+{
+  "source": "Bhautik.pdf",
+  "company": "FLUENT HEALTH CARE",
+  "categories": {
+    "TAB/CAP": [
+      {
+        "brand_name": "ITROENT 100 CAP",
+        "composition": "ITROCONAZOLE 100 MG",
+        "pkg": "10CAP",
+        "mrp": 180,
+        "rate": 33,
+        "gst": 5
+      },
+      {
+        "brand_name": "ITROENT 200 CAP",
+        "composition": "ITROCONAZOLE 200 MG",
+        "pkg": "10CAP",
+        "mrp": 247,
+        "rate": 55,
+        "gst": 5
+      },
+      {
+        "brand_name": "LEVOENT 5 TAB",
+        "composition": "LEVOCETRIZINE 5 MG",
+        "pkg": "10TAB",
+        "mrp": 30,
+        "rate": 5,
+        "gst": 5
+      },
+      {
+        "brand_name": "LEVOENT M TAB",
+        "composition": "LEVOCETRIZINE 5MG+ MONTELUKAST 10MG",
+        "pkg": "10 TAB",
+        "mrp": 120,
+        "rate": 14,
+        "gst": 5
+      },
+      {
+        "brand_name": "PREDENT 4 TAB",
+        "composition": "METHAYLPREDNISOL 4MG",
+        "pkg": "10TAB",
+        "mrp": 60,
+        "rate": 13,
+        "gst": 5
+      },
+      {
+        "brand_name": "RABIENT DSR CAP",
+        "composition": "RABEPRAZOLE 20 MG + DOMPERIDONE 10 MG",
+        "pkg": "10 CAP",
+        "mrp": 120,
+        "rate": 12,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUPAN DSR CAP",
+        "composition": "PANTOPRAZOLE 40 MG + DOMPERIDONE 10 MG",
+        "pkg": "10 CAP",
+        "mrp": 130,
+        "rate": 14,
+        "gst": 5
+      },
+      {
+        "brand_name": "EVENT 400 CAP",
+        "composition": "VITAMINE E SOFTGET",
+        "pkg": "10CAP",
+        "mrp": 115,
+        "rate": 30,
+        "gst": 5
+      },
+      {
+        "brand_name": "TREDENT 10 CAP",
+        "composition": "ISOTRTRION 10 MG SOFT GEL CAP",
+        "pkg": "10 CAP",
+        "mrp": 180,
+        "rate": 30,
+        "gst": 5
+      },
+      {
+        "brand_name": "TREDENT 20 CAP",
+        "composition": "ISOTRTRION 20 MG SOFT GEL",
+        "pkg": "10CAP",
+        "mrp": 240,
+        "rate": 37,
+        "gst": 5
+      },
+      {
+        "brand_name": "AZIENT 250 TAB",
+        "composition": "AZITHROMYCIN 250 MG",
+        "pkg": "6TAB",
+        "mrp": 78,
+        "rate": 30,
+        "gst": 5
+      },
+      {
+        "brand_name": "AZIENT 500 TAB",
+        "composition": "AZITHROMYCIN 500 MG",
+        "pkg": "3TAB",
+        "mrp": 78,
+        "rate": 30,
+        "gst": 5
+      },
+      {
+        "brand_name": "DOXYFLU LB CAP",
+        "composition": "DOXYCYCLINE 100MG & LACTIC ACID CAP",
+        "pkg": "10CAP",
+        "mrp": 150,
+        "rate": 26,
+        "gst": 5
+      },
+      {
+        "brand_name": "ASFLU-SP TAB",
+        "composition": "ACECLOFENAC+PARACETAMOL+SERRATIOPEPTIDASE",
+        "pkg": "10TAB",
+        "mrp": 121,
+        "rate": 23,
+        "gst": 5
+      },
+      {
+        "brand_name": "D- TON TABLET",
+        "composition": "L-GLUTATHION 500MG+VIT. C 40MG+ALPHA LIPOIC ACID+GRAPE SEED EXTRACT",
+        "pkg": "10TAB",
+        "mrp": 520,
+        "rate": 90,
+        "gst": 5
+      },
+      {
+        "brand_name": "HAIRFLU TABLET",
+        "composition": "BIOTIN 10MG+SAW PALMETTO+OMEGA 3 FATTY ACIDS+NETTLE LEAF+ MULTIVITAMINS+MINERAL",
+        "pkg": "10TAB",
+        "mrp": 210,
+        "rate": 45,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUCEE TAB",
+        "composition": "VITAMIN C + ZINC CHEWABLE TAB",
+        "pkg": "10TAB",
+        "mrp": 130,
+        "rate": 20,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUMEC PLUS CAP",
+        "composition": "METHAYLCOBALAMIN1500MG+ALPHA LIPOIC ACID 100MG+FOLIC ACID 1.5MG+PYRIDOXINE 3 MG",
+        "pkg": "10 CAP",
+        "mrp": 135,
+        "rate": 24,
+        "gst": 5
+      },
+      {
+        "brand_name": "NUTRIENT SOFTGEL",
+        "composition": "MULTIVITAMIN+ GINKO BILOBA +OMEGA-3 FATTY FATTU ACID+MULITMINERAL CAP",
+        "pkg": "10CAAP",
+        "mrp": 510,
+        "rate": 30,
+        "gst": 5
+      },
+      {
+        "brand_name": "MELAMOD TAB",
+        "composition": "L-CARNITINE, L-TARTRATE, UBIQUINONE, BIOTIN, LYCOPENE,MAGNIUM SULPHATE & ZINC",
+        "pkg": "10TAB",
+        "mrp": 498,
+        "rate": 100,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUCLAV 625 LB TAB",
+        "composition": "AMOXYCILIN 500MG + CLAVULANTE125MG + LACTIC ACID",
+        "pkg": "6TAB",
+        "mrp": 140,
+        "rate": 40,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUCLAV 375 TAB",
+        "composition": "AMOXYCILIN 200MG+ CLAVULANTE 125MG",
+        "pkg": "6TAB",
+        "mrp": 120,
+        "rate": 38,
+        "gst": 5
+      },
+      {
+        "brand_name": "SYINE 25 TAB",
+        "composition": "HYDROXYZINE HYDROCHLORIDE 25MG TAB",
+        "pkg": "10TAB",
+        "mrp": 79,
+        "rate": 15,
+        "gst": 5
+      }
+    ],
+    "OINTMENT": [
+      {
+        "brand_name": "CLIENT CREAM",
+        "composition": "CLINDAMYCIN PHOSPHATE 1%+NICOTINAMIDE 4%",
+        "pkg": "20GM",
+        "mrp": 108,
+        "rate": 18,
+        "gst": 5
+      },
+      {
+        "brand_name": "CLOBENT S CREAM",
+        "composition": "CLOBETASOL PROPIONATE 0.05 + SALICYLIC ACID 6%",
+        "pkg": "20GM",
+        "mrp": 95,
+        "rate": 18,
+        "gst": 5
+      },
+      {
+        "brand_name": "BACKENT CREAM",
+        "composition": "BECLOMETHASON 0.025% + CLOTRIMAZOLE 1% + NEOMYCIN 0.5% + CHLOROCEROSOL 0.1%",
+        "pkg": "20 GM",
+        "mrp": 95,
+        "rate": 15,
+        "gst": 5
+      },
+      {
+        "brand_name": "LULIENT CREAM",
+        "composition": "LULICONAZOLE 1% CREAM",
+        "pkg": "30 GM",
+        "mrp": 290,
+        "rate": 27,
+        "gst": 5
+      },
+      {
+        "brand_name": "CLOBENT OT CREAM",
+        "composition": "OFLOXACIN+ORNIDAZOLE+ITRACONAZOLE+CLOBETASOL PROPIONATE CREAM",
+        "pkg": "15 GM",
+        "mrp": 95,
+        "rate": 15,
+        "gst": 5
+      },
+      {
+        "brand_name": "EVIENT CREAM",
+        "composition": "MOISUTURING +VITAMIN E+ALOVERA +SHEA BUTTER",
+        "pkg": "100GM",
+        "mrp": 168,
+        "rate": 34,
+        "gst": 18
+      },
+      {
+        "brand_name": "FLUHEEL CREAM",
+        "composition": "UREA+LACTIC ACID+CETOACROGOL 1000",
+        "pkg": "60GM",
+        "mrp": 155,
+        "rate": 50,
+        "gst": 18
+      },
+      {
+        "brand_name": "D-TON CREAM",
+        "composition": "HYDROQUINE+KOJIC ACID+GLYCOLIC ACID+VIT E",
+        "pkg": "30GM",
+        "mrp": 420,
+        "rate": 90,
+        "gst": 5
+      },
+      {
+        "brand_name": "FUSPOL B CREAM",
+        "composition": "FUSIDIC ACID + BECLOMETHASONE",
+        "pkg": "10GM",
+        "mrp": 150,
+        "rate": 40,
+        "gst": 5
+      },
+      {
+        "brand_name": "MUPILINE CREAM",
+        "composition": "MUPIROCIN 2%",
+        "pkg": "5GM",
+        "mrp": 113,
+        "rate": 32,
+        "gst": 5
+      }
+    ],
+    "SOAP/ LOTION": [
+      {
+        "brand_name": "KETOENT SOAP",
+        "composition": "KETOKONAZOLE 2%",
+        "pkg": "75GM",
+        "mrp": 140,
+        "rate": 28,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUTHRIN SOAP",
+        "composition": "PERMETHRIN 1%",
+        "pkg": "75GM",
+        "mrp": 75,
+        "rate": 19,
+        "gst": 5
+      },
+      {
+        "brand_name": "D-TON SOAP",
+        "composition": "L-GULTATHIONE+KOJIC ACID+ VIT E",
+        "pkg": "75GM",
+        "mrp": 189,
+        "rate": 35,
+        "gst": 5
+      },
+      {
+        "brand_name": "EVIENT SOAP",
+        "composition": "VITAMINE E + GLICIRIN",
+        "pkg": "75GM",
+        "mrp": 115,
+        "rate": 26,
+        "gst": 5
+      },
+      {
+        "brand_name": "CALAFLU LOTION",
+        "composition": "CALAMIN 8% + PARFFIN 10% + ALOVERA",
+        "pkg": "100ML",
+        "mrp": 160,
+        "rate": 36,
+        "gst": 18
+      },
+      {
+        "brand_name": "CLOBENT S LOTION (SPREY BOTTLE)",
+        "composition": "CLOBETASOL 0.05% + SALICYLIC ACID 3%",
+        "pkg": "30ML",
+        "mrp": 220,
+        "rate": 38,
+        "gst": 5
+      },
+      {
+        "brand_name": "BECKENT -C LOTION (SPREY BOTTLE)",
+        "composition": "BECLOMETHASON + CLOTRIMAZOLE",
+        "pkg": "30ML",
+        "mrp": 220,
+        "rate": 48,
+        "gst": 5
+      },
+      {
+        "brand_name": "LULIENT LOTION",
+        "composition": "LULICONAZOLE 1% LOTION",
+        "pkg": "30ML",
+        "mrp": 290,
+        "rate": 42,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUTHRIN LOTION",
+        "composition": "PEREMETHRIN 5 % LOTION",
+        "pkg": "100ML",
+        "mrp": 107,
+        "rate": 35,
+        "gst": 5
+      },
+      {
+        "brand_name": "SUNFLOW SUN PROTECTION",
+        "composition": "SUN PROTECTION SPF 50+",
+        "pkg": "100 ML",
+        "mrp": 380,
+        "rate": 75,
+        "gst": 18
+      },
+      {
+        "brand_name": "KETOENT ZPTO SAMPOO",
+        "composition": "KETOKONAZOLE 2% + ZINC PYRITHIONE SAMPOO",
+        "pkg": "100ML",
+        "mrp": 280,
+        "rate": 70,
+        "gst": 18
+      },
+      {
+        "brand_name": "REBEN LOTION",
+        "composition": "WHITE SOFT PARAFFIN +LIGHT LIQUID PARAFFIN LOTION",
+        "pkg": "250ML",
+        "mrp": 584,
+        "rate": 100,
+        "gst": 18
+      },
+      {
+        "brand_name": "I CAFF ROLL ON",
+        "composition": "FOR DARK CIRCLES",
+        "pkg": "15ml",
+        "mrp": 349,
+        "rate": 120,
+        "gst": 18
+      },
+      {
+        "brand_name": "SOFT PHIL LOTION",
+        "composition": "MOISUTURING +VITAMIN E+ALOVERA +SHEA BUTTER",
+        "pkg": "200ML",
+        "mrp": 470,
+        "rate": 100,
+        "gst": 18
+      },
+      {
+        "brand_name": "HAIRFLU-F SOLUTION",
+        "composition": "MINOXIDIL 5% + FINASTERIDE 0.1%",
+        "pkg": "60 ML",
+        "mrp": 839,
+        "rate": 165,
+        "gst": 5
+      },
+      {
+        "brand_name": "Q ENT POWDER",
+        "composition": "CLOTRIMAZOLE 1% POWDER",
+        "pkg": "100GM",
+        "mrp": 140,
+        "rate": 30,
+        "gst": 5
+      }
+    ],
+    "FACE WASH": [
+      {
+        "brand_name": "ACNOENT FACE WASH",
+        "composition": "ANTI ACNE FACE WASH",
+        "pkg": "100 GM",
+        "mrp": 310,
+        "rate": 55,
+        "gst": 18
+      },
+      {
+        "brand_name": "KOJENT FACE WASH",
+        "composition": "SKIN WHITENING FACE WASH",
+        "pkg": "100 GM",
+        "mrp": 360,
+        "rate": 60,
+        "gst": 18
+      },
+      {
+        "brand_name": "D TON FACE WASH",
+        "composition": "GLUTATHIONE+HYALURONIC ACID+VIT.E+VIT.C",
+        "pkg": "60GM",
+        "mrp": 270,
+        "rate": 73,
+        "gst": 18
+      },
+      {
+        "brand_name": "SALYFLU FACE WASH",
+        "composition": "SALICYLIC ACID+ALOEVERA EXTA+ GLYCOLIC ACID",
+        "pkg": "100GM",
+        "mrp": 360,
+        "rate": 75,
+        "gst": 18
+      }
+    ],
+    "INJECTION": [
+      {
+        "brand_name": "SANIGRAN INJ",
+        "composition": "GRANISETRON 1 MG",
+        "pkg": "3ML",
+        "mrp": 100,
+        "rate": 18,
+        "gst": 5
+      },
+      {
+        "brand_name": "D-TON 600 INJ",
+        "composition": "GLUTATHIONE 600 MG",
+        "pkg": "1VIL",
+        "mrp": 1290,
+        "rate": 500,
+        "gst": 5
+      },
+      {
+        "brand_name": "D-TON 1200 INJ",
+        "composition": "GLUTATHIONE 1200 MG",
+        "pkg": "1VIL",
+        "mrp": 2800,
+        "rate": 800,
+        "gst": 5
+      },
+      {
+        "brand_name": "SYNAMIK 500 MG INJ",
+        "composition": "AMIKACIN 500 MG",
+        "pkg": "2ML",
+        "mrp": 113,
+        "rate": 20,
+        "gst": 5
+      }
+    ],
+    "HAIRFLU KIT ( HAIR HEALTH & GROWTH FORMULA 100% RESULT ORIENTED 5%": {
+      "kit_mrp": 1499,
+      "kit_ret": 500,
+      "items": [
+        {
+          "brand_name": "HAIR-Q10 TAB",
+          "composition": "COENZYME Q10,NATURAL EXTRACT, VITAMINS WITH AMINO ACIDS & MINERALS TABLETS",
+          "pkg": "8TAB",
+          "schedule": "TUESDAY, FRIDAY",
+          "dose": "1 TAB"
+        },
+        {
+          "brand_name": "HAIR-CAL D3 TAB",
+          "composition": "CALCIUM ASPARTATE, CALCIUM OROTATE WITH VITAMINS & MINERALS TABLETS",
+          "pkg": "8TAB",
+          "schedule": "MONDAY, THURSDAY",
+          "dose": "1 TAB"
+        },
+        {
+          "brand_name": "HAIR-BIOF TAB",
+          "composition": "IRON, BIOFLAVONOIDS, BRAHMI, AMINO ACIDS WITH VITAMINS & MINERALS TABLETS",
+          "pkg": "8TAB",
+          "schedule": "TUESDAY, FRIDAY",
+          "dose": "1 TAB"
+        },
+        {
+          "brand_name": "HAIR - FOLIC CAP",
+          "composition": "AMINO ACID, VITAMIN C, FOLIC ACID & MINERALS CAPSULES",
+          "pkg": "8 CAP",
+          "schedule": "WEDNESDAY, SATURDAY",
+          "dose": "1 CAP"
+        },
+        {
+          "brand_name": "HAIR - MULTI CAP",
+          "composition": "AMINO ACID, VITAMINS, MINERALS & NATURALS EXTRACT CASULES",
+          "pkg": "8 CAP",
+          "schedule": "MONDAY, THURSDAY",
+          "dose": "1 CAP"
+        },
+        {
+          "brand_name": "HAIR - COLOSTRUM CAP",
+          "composition": "COENZYME Q10, VITAMIN B6, INOSITOL, L- ARGININE, ZINC SULPHATE, BIOTIN, METHYL SULPHATE METHANE, STINGING NETTLE EXTRACT, COLOSTRUM, VITAMIN B12, GREEN TEA EXTRACT CAPSULE",
+          "pkg": "8 CAP",
+          "schedule": "WEDNESDAY, SATURDAY",
+          "dose": "1CAP"
+        }
+      ]
+    },
+    "SERUM": [
+      {
+        "brand_name": "REVAGE C FACESERUM",
+        "composition": "VIT C + NIACINAMIDE + D-PANTHENOL",
+        "pkg": "50ML",
+        "mrp": 899,
+        "rate": 320,
+        "gst": 18
+      },
+      {
+        "brand_name": "EVERGAIN HAIR SERUM",
+        "composition": "HYDROXYETHYL UREA + PROTEIN+TRIETHYLENE GLYCOL",
+        "pkg": "100ML",
+        "mrp": 750,
+        "rate": 280,
+        "gst": 18
+      }
+    ],
+    "GENERAL RANGE": [
+      {
+        "brand_name": "SYNOJEFIX AZ TAB",
+        "composition": "CEFIXIME 200MG + AZITHROMYCIN 250 MG",
+        "pkg": "10TAB",
+        "mrp": 335,
+        "rate": 95,
+        "gst": 5
+      },
+      {
+        "brand_name": "SYNODOXIME O TAB",
+        "composition": "CEFPODOXIME 200MG + OFLOXACIN 200 TAB",
+        "pkg": "10TAB",
+        "mrp": 285,
+        "rate": 65,
+        "gst": 5
+      },
+      {
+        "brand_name": "SYNOGESIC P TAB",
+        "composition": "ACECLOFENAC100MG + PARACETAMOL 325 MG",
+        "pkg": "10TAB",
+        "mrp": 75,
+        "rate": 10,
+        "gst": 5
+      },
+      {
+        "brand_name": "SYNOTECH DP TAB",
+        "composition": "DICLOFENAC 50MG + PARACETAMOL 325 MG",
+        "pkg": "10 TAB",
+        "mrp": 60,
+        "rate": 8,
+        "gst": 5
+      },
+      {
+        "brand_name": "PENOME FORTE TAB",
+        "composition": "METHYLCOBALAMIN1500MCG+ NORTRIPTYLINE10MG+ PREGABALIN 75 MG",
+        "pkg": "10TAB",
+        "mrp": 200,
+        "rate": 30,
+        "gst": 5
+      },
+      {
+        "brand_name": "GABASIN TAB",
+        "composition": "METHYLCOBALAMIN500 MCG + GABAPENTIN 100 MG",
+        "pkg": "10TAB",
+        "mrp": 80,
+        "rate": 14,
+        "gst": 5
+      },
+      {
+        "brand_name": "NEFRONEX TAB",
+        "composition": "N-ACETYLCYSTEINE 150MG + TAURINE 500 MG",
+        "pkg": "10TAB",
+        "mrp": 160,
+        "rate": 30,
+        "gst": 5
+      },
+      {
+        "brand_name": "HISTAR 16 TAB",
+        "composition": "BETAHISTINE 16MG",
+        "pkg": "10TAB",
+        "mrp": 160,
+        "rate": 14,
+        "gst": 5
+      },
+      {
+        "brand_name": "SYNELIC 300 TAB",
+        "composition": "URSODEOXYCHOLIC ACID 300MG",
+        "pkg": "10TAB",
+        "mrp": 350,
+        "rate": 78,
+        "gst": 5
+      },
+      {
+        "brand_name": "DEW Z POWDER",
+        "composition": "DEXTROSE + VITAMIN C",
+        "pkg": "105GM",
+        "mrp": 63,
+        "rate": 25,
+        "gst": 5
+      },
+      {
+        "brand_name": "GUPSIN SYP",
+        "composition": "AMBROXOL+TERBUTALINE + GUAIPHENESIN",
+        "pkg": "100ML",
+        "mrp": 120,
+        "rate": 17,
+        "gst": 5
+      },
+      {
+        "brand_name": "GUPSIN SL SYP",
+        "composition": "AMBROXOL + LEVOSALBUTAMOL + GUAIPHENESIN",
+        "pkg": "100ML",
+        "mrp": 110,
+        "rate": 23,
+        "gst": 5
+      },
+      {
+        "brand_name": "SEPHRIN SYP",
+        "composition": "DEXTROMETHRPHEN + CPM + PHENYLAPHRIN",
+        "pkg": "100 ML",
+        "mrp": 105,
+        "rate": 18,
+        "gst": 5
+      },
+      {
+        "brand_name": "CEFSEV 200 LB TAB",
+        "composition": "CEFIXIME 200 + LACTIC ACID TAB",
+        "pkg": "10TAB",
+        "mrp": 150,
+        "rate": 45,
+        "gst": 5
+      },
+      {
+        "brand_name": "CEFSEV 200 TAB",
+        "composition": "CEFIXIME 200 + OFLOXACINE 200 TAB",
+        "pkg": "10 TAB",
+        "mrp": 240,
+        "rate": 65,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUDOM CV TAB",
+        "composition": "CEFPODOXIME + CLAVULANTE TAB",
+        "pkg": "10TAB",
+        "mrp": 470,
+        "rate": 120,
+        "gst": 5
+      },
+      {
+        "brand_name": "DEFSEV 6 TAB",
+        "composition": "DEFLASACORT 6 MG TAB",
+        "pkg": "10 TAB",
+        "mrp": 170,
+        "rate": 20,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUSER D TAB",
+        "composition": "DICLOFENAC 50 MG + SERRATIOPEPTIDATE 10MG",
+        "pkg": "10TAB",
+        "mrp": 60,
+        "rate": 12,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUBON TAB",
+        "composition": "CISSUS QUADRANGULARIS,BOSWELLIA SERRATA, WITHANIA SOMNIFERA & CURCUMIN LONGHA",
+        "pkg": "10TAB",
+        "mrp": 180,
+        "rate": 30,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLICAL K27 TAB",
+        "composition": "CORAL CALCIUM, VITAMIN K27, VIT D3, SYNOCALAMIN,ZINC,MAGNESIUM,CURCUMIN",
+        "pkg": "10TAB",
+        "mrp": 289,
+        "rate": 38,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUCEE Z POWDER",
+        "composition": "DEXTROSE+SUCROSS+ZINC +VIT C",
+        "pkg": "200GM",
+        "mrp": 135,
+        "rate": 40,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUTEX DX SYP",
+        "composition": "FLUTEX DX SYP",
+        "pkg": "100ML",
+        "mrp": 128,
+        "rate": 22,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUZYM SYP",
+        "composition": "DIGESTIVE ENZYMES SYP",
+        "pkg": "200ML",
+        "mrp": 130,
+        "rate": 30,
+        "gst": 5
+      },
+      {
+        "brand_name": "IROSEV-XT SYP",
+        "composition": "FERROUS ASCORBATE,FOLIC ACID,B-12 SYP",
+        "pkg": "200 ML",
+        "mrp": 165,
+        "rate": 30,
+        "gst": 5
+      },
+      {
+        "brand_name": "NUTRIENT SYP",
+        "composition": "LYCOPENE,MULTIVITAMINS,MULTIMINERALS & ANTI OXIDANTS SYP",
+        "pkg": "200ML",
+        "mrp": 180,
+        "rate": 30,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUMA PAIN OIL",
+        "composition": "ARTHRITIS PAIN OIL",
+        "pkg": "50ML",
+        "mrp": 140,
+        "rate": 40,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUMA GEL",
+        "composition": "DICLOFENACDIETHYLAMIN+DICLOFEN+LINSEED OIL+MENTHOL+CAPSAICIN",
+        "pkg": "30GM",
+        "mrp": 135,
+        "rate": 22,
+        "gst": 5
+      },
+      {
+        "brand_name": "BECTOSEV 1 GM INJ",
+        "composition": "CEFTRIOXANE 1 GM INJ",
+        "pkg": "1VIAL",
+        "mrp": 66.64,
+        "rate": 20,
+        "gst": 5
+      },
+      {
+        "brand_name": "BECTOSEV 1.5 GM INJ",
+        "composition": "CEFTRIOXONE 1000 MG+ SULBACTAM 500 MG",
+        "pkg": "1VIAL",
+        "mrp": 170,
+        "rate": 26,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUEPAN 40 INJ",
+        "composition": "PANTOPRAZOLE 40 MG",
+        "pkg": "1VIAL",
+        "mrp": 53.89,
+        "rate": 11,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUMEC 2500INJ",
+        "composition": "METHYLCOBALAMIN 2500 MCG",
+        "pkg": "DISPO P",
+        "mrp": 110,
+        "rate": 15,
+        "gst": 5
+      }
+    ]
+  }
+}
