@@ -1,31 +1,42 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pill, Mail, Lock, User, ArrowRight } from 'lucide-react';
+import { Pill, Mail, Lock, User, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 export const Login: React.FC = () => {
   const [isSignup, setIsSignup] = useState(false);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login, signup } = useAuth();
+  const { login, signup, resetPassword } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
     setIsSubmitting(true);
 
     try {
-      if (isSignup) {
-        await signup(email, password, fullName);
+      if (isForgotPassword) {
+        await resetPassword(email);
+        setSuccessMessage('Password reset link sent! Please check your email inbox.');
+      } else if (isSignup) {
+        const res = await signup(email, password, fullName);
+        if (res?.user && !res.session) {
+          setSuccessMessage('Verification email sent! Please click the verification link in your email to activate your account.');
+        } else {
+          navigate('/');
+        }
       } else {
         await login(email, password);
+        navigate('/');
       }
-      navigate('/');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Authentication failed';
       setError(msg);
@@ -48,15 +59,15 @@ export const Login: React.FC = () => {
         {/* Tab Toggle */}
         <div className="flex rounded-xl bg-slate-100 p-1 mb-6">
           <button
-            onClick={() => { setIsSignup(false); setError(null); }}
+            onClick={() => { setIsSignup(false); setIsForgotPassword(false); setError(null); setSuccessMessage(null); }}
             className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${
-              !isSignup ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+              !isSignup && !isForgotPassword ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             Sign In
           </button>
           <button
-            onClick={() => { setIsSignup(true); setError(null); }}
+            onClick={() => { setIsSignup(true); setIsForgotPassword(false); setError(null); setSuccessMessage(null); }}
             className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-all ${
               isSignup ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500 hover:text-slate-800'
             }`}
@@ -68,6 +79,13 @@ export const Login: React.FC = () => {
         {error && (
           <div className="rounded-xl bg-rose-50 p-3 text-xs text-rose-600 font-medium mb-4 border border-rose-100">
             {error}
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="rounded-xl bg-emerald-50 p-3.5 text-xs text-emerald-700 font-medium mb-4 border border-emerald-200 flex items-start gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+            <span>{successMessage}</span>
           </div>
         )}
 
@@ -104,27 +122,48 @@ export const Login: React.FC = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Password</label>
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full rounded-xl border border-slate-200 pl-10 pr-3.5 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-              />
+          {!isForgotPassword && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">Password</label>
+                {!isSignup && (
+                  <button
+                    type="button"
+                    onClick={() => { setIsForgotPassword(true); setError(null); setSuccessMessage(null); }}
+                    className="text-[11px] font-semibold text-indigo-600 hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full rounded-xl border border-slate-200 pl-10 pr-3.5 py-2 text-sm focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <button
             type="submit"
             disabled={isSubmitting}
             className="w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-md mt-2"
           >
-            <span>{isSubmitting ? 'Processing...' : isSignup ? 'Create Account' : 'Sign In'}</span>
+            <span>
+              {isSubmitting
+                ? 'Processing...'
+                : isForgotPassword
+                ? 'Send Reset Link'
+                : isSignup
+                ? 'Create Account'
+                : 'Sign In'}
+            </span>
             <ArrowRight className="h-4 w-4" />
           </button>
         </form>

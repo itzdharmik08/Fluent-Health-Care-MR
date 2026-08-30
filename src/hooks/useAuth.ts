@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { authService } from '../services/authService';
 import { UserProfile } from '../types/auth';
+import { getAuthRedirectUrl } from '../lib/authRedirect';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -53,14 +54,37 @@ export function useAuth() {
 
   const signup = async (email: string, pass: string, fullName: string) => {
     setIsLoading(true);
+    const redirectUrl = getAuthRedirectUrl('/auth/callback');
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password: pass,
       options: {
+        emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName.trim(),
         },
       },
+    });
+    setIsLoading(false);
+    if (error) throw error;
+    return data;
+  };
+
+  const resetPassword = async (email: string) => {
+    setIsLoading(true);
+    const redirectUrl = getAuthRedirectUrl('/reset-password');
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: redirectUrl,
+    });
+    setIsLoading(false);
+    if (error) throw error;
+    return data;
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    setIsLoading(true);
+    const { data, error } = await supabase.auth.updateUser({
+      password: newPassword,
     });
     setIsLoading(false);
     if (error) throw error;
@@ -84,6 +108,8 @@ export function useAuth() {
     isAuthenticated: !!user,
     login,
     signup,
+    resetPassword,
+    updatePassword,
     logout,
   };
 }
