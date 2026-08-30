@@ -3,6 +3,8 @@ import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import { AppLayout } from './App';
 import { Login } from '../pages/Login';
 import { AuthCallback } from '../pages/AuthCallback';
+import { VerifySuccess } from '../pages/VerifySuccess';
+import { VerifyError } from '../pages/VerifyError';
 import { ResetPassword } from '../pages/ResetPassword';
 import { Dashboard } from '../pages/Dashboard';
 import { Doctors } from '../pages/Doctors';
@@ -55,6 +57,14 @@ export const router = createBrowserRouter([
       {
         path: 'auth/callback',
         element: <AuthCallback />,
+      },
+      {
+        path: 'auth/verify-success',
+        element: <VerifySuccess />,
+      },
+      {
+        path: 'auth/verify-error',
+        element: <VerifyError />,
       },
       {
         path: 'reset-password',
