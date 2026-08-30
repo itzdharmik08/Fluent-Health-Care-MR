@@ -1,14 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pill, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Pill, CheckCircle2, AlertCircle, Loader2, Smartphone } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export const AuthCallback: React.FC = () => {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [deepLinkUrl, setDeepLinkUrl] = useState<string>('');
   const navigate = useNavigate();
 
   useEffect(() => {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    setIsMobileDevice(isMobile);
+
+    // Construct app deep link URL to pass tokens/code to native APK
+    const constructedDeepLink = `mrmedicine://auth/callback${window.location.search}${window.location.hash}`;
+    setDeepLinkUrl(constructedDeepLink);
+
+    // If opened on mobile browser, attempt to launch native APK via deep link
+    if (isMobile) {
+      console.log('Mobile browser detected. Launching deep link:', constructedDeepLink);
+      window.location.href = constructedDeepLink;
+    }
+
     const handleAuthCallback = async () => {
       try {
         const urlParams = new URLSearchParams(window.location.search);
@@ -105,6 +120,18 @@ export const AuthCallback: React.FC = () => {
             <Loader2 className="h-10 w-10 text-indigo-600 animate-spin mx-auto" />
             <h2 className="text-xl font-bold text-slate-900">Verifying Email...</h2>
             <p className="text-xs text-slate-500">Completing authentication and setting up your session.</p>
+
+            {isMobileDevice && deepLinkUrl && (
+              <div className="pt-2">
+                <a
+                  href={deepLinkUrl}
+                  className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 transition-colors shadow-md"
+                >
+                  <Smartphone className="h-4 w-4" />
+                  <span>Open in MR Medicine App</span>
+                </a>
+              </div>
+            )}
           </div>
         )}
 
@@ -112,7 +139,21 @@ export const AuthCallback: React.FC = () => {
           <div className="space-y-4">
             <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
             <h2 className="text-xl font-bold text-slate-900">Email Verified!</h2>
-            <p className="text-xs text-slate-500">Redirecting to MR Management Dashboard...</p>
+            <p className="text-xs text-slate-500">
+              {isMobileDevice ? 'Opening app...' : 'Redirecting to MR Management Dashboard...'}
+            </p>
+
+            {isMobileDevice && deepLinkUrl && (
+              <div className="pt-2">
+                <a
+                  href={deepLinkUrl}
+                  className="w-full inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors shadow-md"
+                >
+                  <Smartphone className="h-4 w-4" />
+                  <span>Launch Mobile App</span>
+                </a>
+              </div>
+            )}
           </div>
         )}
 
