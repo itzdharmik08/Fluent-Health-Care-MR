@@ -16,6 +16,7 @@ export interface Medicine {
   min_rate?: number | null;
   max_rate?: number | null;
   is_active: boolean;
+  status?: string | null;
   pdf_source?: string | null;
   created_at: string;
   updated_at?: string;

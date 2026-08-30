@@ -91,13 +91,25 @@ export const medicineService = {
     }
 
     const payload: Record<string, unknown> = {
-      ...medicine,
       user_id: user?.id,
+      medicine_name: medicine.medicine_name?.trim(),
+      brand_name: medicine.brand_name || '',
+      generic_name: medicine.generic_name || '',
+      composition: medicine.composition || '',
+      category: medicine.category || 'GENERAL RANGE',
+      packing: medicine.packing || '',
+      mrp: parseFloat(String(medicine.mrp || 0)),
+      base_price: parseFloat(String(medicine.base_price || 0)),
+      current_rate: parseFloat(String(medicine.current_rate || 0)),
+      gst_percent: parseFloat(String(medicine.gst_percent || 12)),
+      company_name: medicine.company_name || 'Fluent Health Care',
+      pdf_source: medicine.pdf_source || 'Manual Entry',
+      status: medicine.status || 'active',
       updated_at: new Date().toISOString(),
     };
 
-    if (!payload.id || payload.id === '') {
-      delete payload.id;
+    if (medicine.id) {
+      payload.id = medicine.id;
     }
 
     const { data, error } = await supabase
@@ -166,39 +178,85 @@ export const medicineService = {
   },
 
   /**
-   * Bulk import preview items into Supabase
+   * Bulk import preview items into Supabase cleanly with batching and deduplication
    */
   async bulkImportMedicines(previews: ImportedMedicinePreview[]): Promise<number> {
     await authService.ensureUserProfile();
     const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('User authentication required for bulk import.');
 
-    const payloads = previews
-      .filter((p) => p.isSelected !== false)
-      .map((p) => ({
-        user_id: user?.id,
-        medicine_name: p.medicine_name,
-        brand_name: p.brand_name,
-        generic_name: p.generic_name,
-        composition: p.composition,
-        category: p.category,
-        packing: p.packing,
-        mrp: p.mrp,
-        base_price: p.base_price,
-        current_rate: p.current_rate,
-        gst_percent: p.gst_percent,
-        company_name: p.company_name,
-        pdf_source: p.pdf_source || 'PDF Import',
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      }));
+    const selected = previews.filter((p) => p.isSelected !== false);
+    if (selected.length === 0) return 0;
 
-    if (payloads.length === 0) return 0;
+    // Deduplicate selected items by lowercase medicine_name to prevent batch conflicts
+    const uniqueMap = new Map<string, ImportedMedicinePreview>();
+    for (const item of selected) {
+      const nameKey = (item.medicine_name || '').trim().toLowerCase();
+      if (nameKey && !uniqueMap.has(nameKey)) {
+        uniqueMap.set(nameKey, item);
+      }
+    }
+    const uniquePreviews = Array.from(uniqueMap.values());
 
-    const { error } = await supabase
+    // Fetch existing user medicines to match IDs for updating existing catalog items
+    const { data: existingMedicines } = await supabase
       .from('medicines')
-      .upsert(payloads, { onConflict: 'medicine_name' });
+      .select('id, medicine_name')
+      .eq('user_id', user.id);
 
-    if (error) throw error;
+    const existingIdMap = new Map<string, string>();
+    if (existingMedicines && Array.isArray(existingMedicines)) {
+      existingMedicines.forEach((m) => {
+        if (m.medicine_name) {
+          existingIdMap.set(m.medicine_name.trim().toLowerCase(), m.id);
+        }
+      });
+    }
+
+    // Build clean payloads matching exact Supabase database column schema
+    const payloads = uniquePreviews.map((p) => {
+      const nameKey = (p.medicine_name || '').trim().toLowerCase();
+      const existingId = existingIdMap.get(nameKey);
+
+      const payload: Record<string, unknown> = {
+        user_id: user.id,
+        medicine_name: p.medicine_name.trim(),
+        brand_name: p.brand_name || '',
+        generic_name: p.generic_name || '',
+        composition: p.composition || '',
+        category: p.category || 'GENERAL RANGE',
+        packing: p.packing || '',
+        mrp: parseFloat(String(p.mrp || 0)),
+ base_price: parseFloat(String(p.base_price || 0)),
+        current_rate: parseFloat(String(p.current_rate || 0)),
+        gst_percent: parseFloat(String(p.gst_percent || 12)),
+        company_name: p.company_name || 'Fluent Health Care',
+        pdf_source: p.pdf_source || 'Data Import',
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      };
+
+      if (existingId) {
+        payload.id = existingId;
+      }
+
+      return payload;
+    });
+
+    // Chunk upserts in batches of 50 for optimal database performance
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < payloads.length; i += BATCH_SIZE) {
+      const batch = payloads.slice(i, i + BATCH_SIZE);
+      const { error } = await supabase
+        .from('medicines')
+        .upsert(batch);
+
+      if (error) {
+        console.error('Supabase bulk import batch error:', error);
+        throw new Error(error.message || 'Failed to import medicine batch into database');
+      }
+    }
+
     return payloads.length;
   },
 };
