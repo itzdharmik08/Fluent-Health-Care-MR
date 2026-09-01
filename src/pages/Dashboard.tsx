@@ -4,7 +4,7 @@ import { useDoctors } from '../hooks/useDoctors';
 import { useMedicines } from '../hooks/useMedicines';
 import { useOrders } from '../hooks/useOrders';
 import { formatINR, formatDate } from '../lib/formatters';
-import { UserCheck, Pill, FileText, TrendingUp, Plus, Upload, ArrowUpRight } from 'lucide-react';
+import { UserCheck, Pill, FileText, TrendingUp, Plus, Upload, ArrowUpRight, BellRing, ArrowRight } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 export const Dashboard: React.FC = () => {
@@ -15,6 +15,13 @@ export const Dashboard: React.FC = () => {
   const totalSales = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
   const pendingOrders = orders.filter((o) => o.payment_status === 'pending').length;
   const recentOrders = orders.slice(0, 5);
+
+  // 1-Month / 30-Day Overdue Payment calculation
+  const overdueOrders = orders.filter((o) => {
+    if (o.payment_status === 'paid' || !o.order_date) return false;
+    const diffDays = Math.floor((Date.now() - new Date(o.order_date).getTime()) / (1000 * 60 * 60 * 24));
+    return diffDays >= 30;
+  });
 
   // Chart dataset for sales analytics
   const chartData = orders
@@ -55,6 +62,36 @@ export const Dashboard: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* 🚨 1-Month Overdue Payment Reminder Alert */}
+      {overdueOrders.length > 0 && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/90 p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-600 text-white shrink-0 shadow-sm">
+              <BellRing className="h-5 w-5 animate-bounce" />
+            </div>
+            <div>
+              <h3 className="font-bold text-rose-900 text-sm sm:text-base flex items-center gap-2">
+                <span>1-Month Payment Reminder Alert</span>
+                <span className="rounded-full bg-rose-200 text-rose-900 text-xs px-2 py-0.5 font-extrabold">
+                  {overdueOrders.length} Overdue
+                </span>
+              </h3>
+              <p className="text-xs text-rose-700">
+                You have {overdueOrders.length} pending order(s) created 30+ days ago requiring payment follow-up.
+              </p>
+            </div>
+          </div>
+
+          <Link
+            to="/orders?filter=overdue"
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-semibold text-white hover:bg-rose-700 shadow-xs shrink-0 transition-all"
+          >
+            <span>View & Send Reminders</span>
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      )}
 
       {/* Metrics Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

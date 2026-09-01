@@ -6,7 +6,7 @@ import { useOrders } from '../hooks/useOrders';
 import { OrderItem, PaymentStatus, PaymentMode } from '../types/order';
 import { CalculationsEngine } from '../lib/calculations';
 import { formatINR } from '../lib/formatters';
-import { ArrowLeft, Plus, Trash2, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText, CheckCircle, AlertCircle, Filter, Pill, Search } from 'lucide-react';
 
 export const NewOrder: React.FC = () => {
   const { doctors, getDoctorRates } = useDoctors();
@@ -17,7 +17,9 @@ export const NewOrder: React.FC = () => {
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
   const [doctorCustomRates, setDoctorCustomRates] = useState<Record<string, { rate: number; discount_percent: number }>>({});
 
-  // Step 2 Selection State
+  // Step 2 Selection & Category Filter State
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [searchFilter, setSearchFilter] = useState<string>('');
   const [selectedMedicineId, setSelectedMedicineId] = useState<string>('');
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
 
@@ -27,6 +29,83 @@ export const NewOrder: React.FC = () => {
   const [notes, setNotes] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  const categoryPresets = [
+    'All',
+    'TAB/CAP',
+    'FACE WASH',
+    'OINTMENT',
+    'SOAP/ LOTION',
+    'HAIRFLU KIT',
+    'INJECTION',
+    'SERUM',
+    'GENERAL RANGE',
+  ];
+
+  // Extract dynamic custom categories from loaded medicines
+  const extraCategories = Array.from(
+    new Set(
+      medicines
+        .map((m) => m.category?.trim())
+        .filter((cat): cat is string => Boolean(cat))
+    )
+  ).filter(
+    (cat) =>
+      !categoryPresets.some(
+        (preset) => preset.toUpperCase() === cat.toUpperCase()
+      )
+  );
+
+  const allCategoryOptions = [...categoryPresets, ...extraCategories];
+
+  const handleCategoryChange = (newCategory: string) => {
+    setSelectedCategory(newCategory);
+    setSelectedMedicineId('');
+  };
+
+  const filteredMedicines = medicines.filter((m) => {
+    // 1. Category Filter
+    if (selectedCategory !== 'All') {
+      const cat = (m.category || '').toUpperCase();
+      const name = (m.medicine_name || '').toUpperCase();
+      const target = selectedCategory.toUpperCase();
+
+      if (target.startsWith('HAIRFLU')) {
+        const isMatch =
+          cat.includes('HAIRFLU') ||
+          name.includes('HAIRFLU') ||
+          (m.composition && m.composition.toUpperCase().includes('HAIR'));
+        if (!isMatch) return false;
+      } else if (target === 'FACE WASH') {
+        if (!cat.includes('FACE WASH') && !name.includes('FACE WASH') && !name.includes('FACEWASH')) return false;
+      } else if (target === 'SOAP/ LOTION' || target === 'SOAP' || target === 'LOTION') {
+        if (!cat.includes('SOAP') && !cat.includes('LOTION') && !name.includes('SOAP') && !name.includes('LOTION') && !name.includes('SAMPOO') && !name.includes('SHAMPOO')) return false;
+      } else if (target === 'OINTMENT') {
+        if (!cat.includes('OINTMENT') && !name.includes('CREAM') && !name.includes('OINTMENT') && !name.includes('GEL')) return false;
+      } else if (target === 'TAB/CAP' || target === 'TAB' || target === 'CAP') {
+        if (!cat.includes('TAB') && !cat.includes('CAP') && !name.includes('TAB') && !name.includes('CAP') && !name.includes('TABLET') && !name.includes('CAPSULE')) return false;
+      } else if (target === 'INJECTION') {
+        if (!cat.includes('INJ') && !name.includes('INJ') && !name.includes('VIL')) return false;
+      } else if (target === 'SERUM') {
+        if (!cat.includes('SERUM') && !name.includes('SERUM')) return false;
+      } else if (target === 'GENERAL RANGE') {
+        if (cat.includes('TAB') || cat.includes('CREAM') || cat.includes('SOAP') || cat.includes('INJ') || cat.includes('SERUM') || cat.includes('FACE') || cat.includes('HAIRFLU')) return false;
+      } else if (cat !== target) {
+        return false;
+      }
+    }
+
+    // 2. Text Search Filter
+    if (searchFilter.trim()) {
+      const q = searchFilter.toLowerCase().trim();
+      const matchName = m.medicine_name && m.medicine_name.toLowerCase().includes(q);
+      const matchBrand = m.brand_name && m.brand_name.toLowerCase().includes(q);
+      const matchComp = m.composition && m.composition.toLowerCase().includes(q);
+      if (!matchName && !matchBrand && !matchComp) return false;
+    }
+
+    return true;
+  });
 
   const selectedDoctor = doctors.find((d) => d.id === selectedDoctorId);
 
@@ -210,39 +289,109 @@ export const NewOrder: React.FC = () => {
           !selectedDoctorId ? 'opacity-50 pointer-events-none' : ''
         }`}
       >
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold text-slate-900 text-base">2. Add Medicines to Order</h3>
-          <span className="text-xs text-slate-400">Search & add line items below</span>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+              <span>2. Add Medicines to Order</span>
+            </h3>
+            <p className="text-xs text-slate-500">First select category filter, then pick medicine line item</p>
+          </div>
+          <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+            {orderItems.length} {orderItems.length === 1 ? 'item' : 'items'} in order
+          </span>
         </div>
 
-        {/* Add Bar */}
-        <div className="flex flex-col sm:flex-row items-center gap-2">
-          <select
-            value={selectedMedicineId}
-            onChange={(e) => setSelectedMedicineId(e.target.value)}
-            className="flex-1 w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs sm:text-sm focus:border-indigo-500 focus:outline-none"
-          >
-            <option value="">-- Search / Select Medicine --</option>
-            {medicines.map((m) => {
-              const custom = doctorCustomRates[m.id];
-              const badge = custom
-                ? ` (Doctor Special Rate: ₹${custom.rate})`
-                : ` (Rate: ₹${m.current_rate})`;
-              return (
-                <option key={m.id} value={m.id}>
-                  {m.medicine_name} {badge}
+        {/* Category & Medicine Selection Bar */}
+        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* 1. Select Category Dropdown */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Filter className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>1. Category Filter</span>
+                </span>
+                <span className="text-[11px] font-semibold text-indigo-700">
+                  {filteredMedicines.length} available
+                </span>
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs sm:text-sm focus:border-indigo-500 focus:outline-none bg-white font-semibold text-slate-800 shadow-xs"
+              >
+                <option value="All">-- All Categories --</option>
+                {allCategoryOptions
+                  .filter((c) => c !== 'All')
+                  .map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat === 'HAIRFLU KIT' ? 'HAIRFLU KIT 🌟' : cat}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            {/* Quick Text Search */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Search className="h-3.5 w-3.5 text-indigo-600" />
+                <span>Search Medicine Name</span>
+              </label>
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Type to filter..."
+                  value={searchFilter}
+                  onChange={(e) => setSearchFilter(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 pl-8 pr-3 py-2 text-xs sm:text-sm focus:border-indigo-500 focus:outline-none bg-white"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Select Medicine Dropdown & Add Button */}
+          <div className="space-y-1 pt-1">
+            <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Pill className="h-3.5 w-3.5 text-indigo-600" />
+              <span>2. Select Medicine ({selectedCategory === 'All' ? 'All Range' : selectedCategory}):</span>
+            </label>
+            <div className="flex flex-col sm:flex-row items-center gap-2">
+              <select
+                value={selectedMedicineId}
+                onChange={(e) => setSelectedMedicineId(e.target.value)}
+                className="flex-1 w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs sm:text-sm focus:border-indigo-500 focus:outline-none bg-white font-medium text-slate-800 shadow-xs"
+              >
+                <option value="">
+                  {filteredMedicines.length === 0
+                    ? `-- No medicines found in ${selectedCategory} --`
+                    : `-- Choose Medicine (${filteredMedicines.length} items) --`}
                 </option>
-              );
-            })}
-          </select>
-          <button
-            onClick={handleAddMedicine}
-            type="button"
-            className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 shadow-sm shrink-0"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Item</span>
-          </button>
+                {filteredMedicines.map((m) => {
+                  const custom = doctorCustomRates[m.id];
+                  const badge = custom
+                    ? ` (Doctor Special Rate: ₹${custom.rate})`
+                    : ` (Rate: ₹${m.current_rate})`;
+                  const pack = m.packing ? ` [${m.packing}]` : '';
+                  return (
+                    <option key={m.id} value={m.id}>
+                      {m.medicine_name}{pack}{badge}
+                    </option>
+                  );
+                })}
+              </select>
+
+              <button
+                onClick={handleAddMedicine}
+                type="button"
+                disabled={!selectedMedicineId}
+                className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-5 py-2 text-xs font-semibold text-white hover:bg-indigo-700 shadow-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Item</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Order Items Table */}
