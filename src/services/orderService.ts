@@ -65,7 +65,15 @@ export const orderService = {
     await authService.ensureUserProfile();
     const { data: { user } } = await supabase.auth.getUser();
 
-    const totals = CalculationsEngine.calculateOrderTotals(items);
+    // Sanitize items - ensure valid medicine and positive quantity
+    const validItems = (items || []).filter((item) => {
+      if (!item) return false;
+      const name = (item.medicine_name_snapshot || item.medicine_name || '').trim();
+      const qty = Number(item.quantity);
+      return Boolean(item.medicine_id) && name.length > 0 && !isNaN(qty) && qty > 0;
+    });
+
+    const totals = CalculationsEngine.calculateOrderTotals(validItems);
     const orderNumber = `ORD-${Math.floor(100000 + Math.random() * 900000)}`;
 
     const orderPayload = {
@@ -91,12 +99,12 @@ export const orderService = {
 
     if (orderErr) throw orderErr;
 
-    const lineItemsPayload = items.map((item) => {
+    const lineItemsPayload = validItems.map((item) => {
       const calc = CalculationsEngine.calculateLineItem(item);
       return {
         order_id: insertedOrder.id,
         medicine_id: item.medicine_id,
-        medicine_name_snapshot: item.medicine_name_snapshot || item.medicine_name || 'Medicine Item',
+        medicine_name_snapshot: (item.medicine_name_snapshot || item.medicine_name || 'Medicine Item').trim(),
         quantity: item.quantity,
         rate: item.rate,
         discount_percent: item.discount_percent || 0,

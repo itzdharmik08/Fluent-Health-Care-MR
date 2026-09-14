@@ -4,6 +4,7 @@ import { useOrders } from '../hooks/useOrders';
 import { useDoctors } from '../hooks/useDoctors';
 import { Order, PaymentStatus, PaymentMode } from '../types/order';
 import { formatINR, formatDate, formatDateTime } from '../lib/formatters';
+import { copyTextToClipboard } from '../lib/utils';
 import {
   Plus,
   Search,
@@ -36,6 +37,7 @@ export const Orders: React.FC = () => {
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>('all');
   const [expandedDoctors, setExpandedDoctors] = useState<Record<string, boolean>>({});
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
 
   // Sync active tab with URL parameter if present
   useEffect(() => {
@@ -84,23 +86,37 @@ export const Orders: React.FC = () => {
     text += `📍 *Address:* ${formattedAddress}\n\n`;
 
     text += `📦 *Order Items:*\n`;
-    if (order.order_items && order.order_items.length > 0) {
-      order.order_items.forEach((item, idx) => {
-        const name = item.medicine_name_snapshot || item.medicine_name;
-        text += `${idx + 1}. *${name}* - Qty: ${item.quantity}\n`;
+
+    // Filter strictly for valid items that have a non-empty name and positive quantity
+    const validItems = (order.order_items || []).filter((item) => {
+      if (!item) return false;
+      const name = (item.medicine_name_snapshot || item.medicine_name || '').trim();
+      const qty = Number(item.quantity);
+      return name.length > 0 && !isNaN(qty) && qty > 0;
+    });
+
+    if (validItems.length > 0) {
+      validItems.forEach((item, idx) => {
+        const name = (item.medicine_name_snapshot || item.medicine_name || '').trim();
+        const qty = item.quantity;
+        text += `${idx + 1}. *${name}* - Qty: ${qty}\n`;
       });
     } else {
       text += `(No items listed)\n`;
     }
 
-    return text;
+    return text.trimEnd();
   };
 
-  const handleCopyOrderText = (order: Order) => {
+  const handleCopyOrderText = async (order: Order) => {
     const text = generateOrderShareText(order);
-    navigator.clipboard.writeText(text);
-    setCopiedOrderId(order.id);
-    setTimeout(() => setCopiedOrderId(null), 2500);
+    const success = await copyTextToClipboard(text);
+    if (success) {
+      setCopiedOrderId(order.id);
+      setCopyToast(`Order ${order.order_number} copied to clipboard! 📋`);
+      setTimeout(() => setCopiedOrderId(null), 2500);
+      setTimeout(() => setCopyToast(null), 2500);
+    }
   };
 
   const handleWhatsAppShare = (order: Order) => {
@@ -123,13 +139,12 @@ export const Orders: React.FC = () => {
           title: `Invoice ${order.order_number} - Fluent Health Care`,
           text: text,
         });
+        return;
       } catch {
-        // Fallback to copy
-        handleCopyOrderText(order);
+        // Fallback to copy if share was rejected or cancelled
       }
-    } else {
-      handleCopyOrderText(order);
     }
+    await handleCopyOrderText(order);
   };
 
   // Overdue calculation helper (30+ days / 1 month pending)
@@ -1052,6 +1067,14 @@ export const Orders: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Floating Copy Feedback Toast */}
+      {copyToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-xl bg-slate-900/95 px-4 py-2.5 text-xs font-semibold text-white shadow-2xl backdrop-blur-xs border border-slate-700 animate-in fade-in slide-in-from-bottom-3 pointer-events-none">
+          <Check className="h-4 w-4 text-emerald-400 shrink-0" />
+          <span>{copyToast}</span>
         </div>
       )}
     </div>

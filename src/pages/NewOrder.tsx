@@ -204,14 +204,21 @@ export const NewOrder: React.FC = () => {
       setErrorMsg('Please select a doctor for this order.');
       return;
     }
-    if (orderItems.length === 0) {
-      setErrorMsg('Order must contain at least one medicine item.');
+
+    const validItems = orderItems.filter((item) => {
+      const name = (item.medicine_name_snapshot || item.medicine_name || '').trim();
+      const qty = Number(item.quantity);
+      return Boolean(item.medicine_id) && name.length > 0 && !isNaN(qty) && qty > 0;
+    });
+
+    if (validItems.length === 0) {
+      setErrorMsg('Order must contain at least one medicine item with valid quantity.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await createOrder(selectedDoctorId, orderItems, paymentStatus, paymentMode, notes);
+      await createOrder(selectedDoctorId, validItems, paymentStatus, paymentMode, notes);
       navigate('/orders');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to submit order';
