@@ -14,15 +14,7 @@ export const orderService = {
       .from('orders')
       .select(`
         *,
-        doctor:doctors (
-          id,
-          doctor_name,
-          clinic_name,
-          specialization,
-          phone,
-          area,
-          gst_number
-        ),
+        doctor:doctors (*),
         order_items (
           *,
           medicine:medicines (

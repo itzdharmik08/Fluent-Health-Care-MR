@@ -49,16 +49,39 @@ export const Orders: React.FC = () => {
   const generateOrderShareText = (order: Order) => {
     const dateStr = formatDate(order.order_date);
     const docName = order.doctor?.doctor_name || 'N/A';
+    const clinicName = order.doctor?.clinic_name?.trim() || '';
     const phone = order.doctor?.phone || 'N/A';
-    const address =
-      [order.doctor?.address, order.doctor?.area, order.doctor?.clinic_name]
+    const rawAddress = order.doctor?.address?.trim() || '';
+    const rawArea = order.doctor?.area?.trim() || '';
+
+    let formattedAddress = '';
+    if (rawAddress) {
+      const cleanAddr = rawAddress
+        .split('\n')
+        .map((line) => line.trim())
         .filter(Boolean)
-        .join(', ') || 'N/A';
+        .join(', ');
+
+      if (rawArea && !cleanAddr.toLowerCase().includes(rawArea.toLowerCase())) {
+        formattedAddress = `${cleanAddr}, ${rawArea}`;
+      } else {
+        formattedAddress = cleanAddr;
+      }
+    } else if (rawArea) {
+      formattedAddress = rawArea;
+    } else if (clinicName) {
+      formattedAddress = clinicName;
+    } else {
+      formattedAddress = 'N/A';
+    }
 
     let text = `📅 *Date:* ${dateStr}\n`;
     text += `👨‍⚕️ *Doctor Name:* ${docName}\n`;
+    if (clinicName) {
+      text += `🏥 *Clinic Name:* ${clinicName}\n`;
+    }
     text += `📞 *Number:* ${phone}\n`;
-    text += `📍 *Address:* ${address}\n\n`;
+    text += `📍 *Address:* ${formattedAddress}\n\n`;
 
     text += `📦 *Order Items:*\n`;
     if (order.order_items && order.order_items.length > 0) {
@@ -943,8 +966,21 @@ export const Orders: React.FC = () => {
                 <div>
                   <span className="text-[10px] font-bold uppercase text-slate-400">Billed To Doctor</span>
                   <div className="font-bold text-slate-900 text-sm mt-0.5">{viewingOrder.doctor?.doctor_name || 'Doctor N/A'}</div>
-                  <div className="text-slate-600">{viewingOrder.doctor?.clinic_name || 'Clinic'}</div>
-                  <div className="text-slate-500">GST: {viewingOrder.doctor?.gst_number || 'N/A'}</div>
+                  {viewingOrder.doctor?.clinic_name && (
+                    <div className="text-slate-600 font-medium">{viewingOrder.doctor?.clinic_name}</div>
+                  )}
+                  {viewingOrder.doctor?.address && (
+                    <div className="text-slate-500 whitespace-pre-line mt-0.5">{viewingOrder.doctor?.address}</div>
+                  )}
+                  {viewingOrder.doctor?.area && !viewingOrder.doctor?.address?.toLowerCase().includes(viewingOrder.doctor?.area?.toLowerCase()) && (
+                    <div className="text-slate-500">{viewingOrder.doctor?.area}</div>
+                  )}
+                  {viewingOrder.doctor?.phone && (
+                    <div className="text-slate-500">Phone: {viewingOrder.doctor?.phone}</div>
+                  )}
+                  {viewingOrder.doctor?.gst_number && (
+                    <div className="text-slate-500">GST: {viewingOrder.doctor?.gst_number}</div>
+                  )}
                 </div>
 
                 <div className="text-right space-y-1">
