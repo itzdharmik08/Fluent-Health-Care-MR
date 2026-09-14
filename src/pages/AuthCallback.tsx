@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Pill, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { authService } from '../services/authService';
+import { EmailOtpType } from '@supabase/supabase-js';
 
 export const AuthCallback: React.FC = () => {
   const navigate = useNavigate();
@@ -10,9 +12,13 @@ export const AuthCallback: React.FC = () => {
     const handleAuthCallback = async () => {
       try {
         const urlParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash ? window.location.hash.substring(1) : '');
+
         const code = urlParams.get('code');
-        const error = urlParams.get('error');
-        const errorDescription = urlParams.get('error_description');
+        const tokenHash = urlParams.get('token_hash');
+        const type = (urlParams.get('type') || hashParams.get('type')) as EmailOtpType | null;
+        const error = urlParams.get('error') || hashParams.get('error');
+        const errorDescription = urlParams.get('error_description') || hashParams.get('error_description');
 
         if (error) {
           throw new Error(errorDescription || error || 'Authentication verification failed.');
@@ -23,10 +29,16 @@ export const AuthCallback: React.FC = () => {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) throw exchangeError;
         }
-
-        // 2. Hash Fragment Check (Implicit Flow fallback)
-        if (window.location.hash) {
-          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        // 2. Token Hash verification (Supabase OTP / verifyOtp)
+        else if (tokenHash && type) {
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type,
+          });
+          if (verifyError) throw verifyError;
+        }
+        // 3. Hash Fragment Check (Implicit Flow fallback)
+        else if (window.location.hash) {
           const accessToken = hashParams.get('access_token');
           const refreshToken = hashParams.get('refresh_token');
 
@@ -39,7 +51,14 @@ export const AuthCallback: React.FC = () => {
           }
         }
 
-        // Navigate to dedicated Success page
+        // Ensure user profile exists in database
+        try {
+          await authService.ensureUserProfile();
+        } catch (profileErr) {
+          console.warn('Could not ensure profile on callback:', profileErr);
+        }
+
+        // Navigate to success page which automatically enters the app
         navigate(`/auth/verify-success${window.location.search}${window.location.hash}`, { replace: true });
       } catch (err: unknown) {
         console.error('Auth callback error:', err);
