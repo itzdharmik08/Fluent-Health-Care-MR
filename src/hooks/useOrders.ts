@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Order, OrderItem, PaymentStatus, PaymentMode } from '../types/order';
+import { Order, OrderItem, PaymentStatus, PaymentMode, SpecialDiscountConfig } from '../types/order';
 import { orderService } from '../services/orderService';
 
 export function useOrders() {
@@ -26,19 +26,53 @@ export function useOrders() {
     fetchOrders();
   }, [fetchOrders]);
 
-  const createOrder = async (
+  const createOrder = useCallback(async (
     doctorId: string,
     items: OrderItem[],
     paymentStatus: PaymentStatus = 'pending',
     paymentMode: PaymentMode = 'Cash',
-    notes = ''
+    notes = '',
+    specialDiscount?: SpecialDiscountConfig | null
   ): Promise<Order> => {
-    const newOrder = await orderService.createOrder(doctorId, items, paymentStatus, paymentMode, notes);
+    const newOrder = await orderService.createOrder(
+      doctorId,
+      items,
+      paymentStatus,
+      paymentMode,
+      notes,
+      specialDiscount
+    );
     await fetchOrders();
     return newOrder;
-  };
+  }, [fetchOrders]);
 
-  const updatePayment = async (
+  const updateOrder = useCallback(async (
+    orderId: string,
+    doctorId: string,
+    items: OrderItem[],
+    paymentStatus: PaymentStatus = 'pending',
+    paymentMode: PaymentMode = 'Cash',
+    notes = '',
+    specialDiscount?: SpecialDiscountConfig | null
+  ): Promise<Order> => {
+    const updated = await orderService.updateOrder(
+      orderId,
+      doctorId,
+      items,
+      paymentStatus,
+      paymentMode,
+      notes,
+      specialDiscount
+    );
+    await fetchOrders();
+    return updated;
+  }, [fetchOrders]);
+
+  const getOrderById = useCallback(async (id: string): Promise<Order | null> => {
+    return await orderService.getOrderById(id);
+  }, []);
+
+  const updatePayment = useCallback(async (
     orderId: string,
     paymentStatus?: PaymentStatus,
     paymentMode?: PaymentMode
@@ -59,12 +93,12 @@ export function useOrders() {
         return o;
       })
     );
-  };
+  }, []);
 
-  const deleteOrder = async (id: string) => {
+  const deleteOrder = useCallback(async (id: string) => {
     await orderService.deleteOrder(id);
     await fetchOrders();
-  };
+  }, [fetchOrders]);
 
   const filteredOrders = orders.filter((o) => {
     if (!searchQuery.trim()) return true;
@@ -84,6 +118,8 @@ export function useOrders() {
     setSearchQuery,
     refetch: fetchOrders,
     createOrder,
+    updateOrder,
+    getOrderById,
     updatePayment,
     deleteOrder,
   };

@@ -1,20 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link, useParams } from 'react-router-dom';
 import { useDoctors } from '../hooks/useDoctors';
 import { useMedicines } from '../hooks/useMedicines';
 import { useOrders } from '../hooks/useOrders';
-import { OrderItem, PaymentStatus, PaymentMode } from '../types/order';
+import { orderService } from '../services/orderService';
+import { OrderItem, PaymentStatus, PaymentMode, SpecialDiscountConfig } from '../types/order';
 import { CalculationsEngine } from '../lib/calculations';
 import { formatINR } from '../lib/formatters';
-import { ArrowLeft, Plus, Trash2, FileText, CheckCircle, AlertCircle, Filter, Pill, Search } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, FileText, CheckCircle, AlertCircle, Filter, Pill, Search, Tag, Sparkles, Percent, Check, X, Save, Edit3, Loader2 } from 'lucide-react';
 
 export const NewOrder: React.FC = () => {
+  const { orderId } = useParams<{ orderId?: string }>();
+  const isEditMode = Boolean(orderId);
   const { doctors, getDoctorRates } = useDoctors();
   const { medicines } = useMedicines();
-  const { createOrder } = useOrders();
+  const { createOrder, updateOrder } = useOrders();
   const navigate = useNavigate();
 
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>('');
+  const [existingOrderNumber, setExistingOrderNumber] = useState<string>('');
+  const [isLoadingOrder, setIsLoadingOrder] = useState<boolean>(false);
+  const initialDoctorIdRef = useRef<string | null>(null);
+  const hasLoadedExistingRef = useRef<boolean>(false);
   const [doctorCustomRates, setDoctorCustomRates] = useState<Record<string, { rate: number; discount_percent: number }>>({});
 
   // Step 2 Selection & Category Filter State
@@ -29,6 +36,12 @@ export const NewOrder: React.FC = () => {
   const [notes, setNotes] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  // Special One-Time Order Discount State
+  const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
+  const [discountInputValue, setDiscountInputValue] = useState<string>('');
+  const [appliedSpecialDiscount, setAppliedSpecialDiscount] = useState<SpecialDiscountConfig | null>(null);
+  const [discountSuccessNotice, setDiscountSuccessNotice] = useState<string | null>(null);
 
   const categoryPresets = [
     'All',
@@ -109,6 +122,90 @@ export const NewOrder: React.FC = () => {
 
   const selectedDoctor = doctors.find((d) => d.id === selectedDoctorId);
 
+  // Load existing order details in Edit Mode
+  useEffect(() => {
+    if (!orderId) {
+      setIsLoadingOrder(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingOrder(true);
+    setErrorMsg(null);
+
+    orderService
+      .getOrderById(orderId)
+      .then((existingOrder) => {
+        if (!isMounted) return;
+        if (!existingOrder) {
+          setErrorMsg(`Order with reference ID "${orderId}" was not found.`);
+          setIsLoadingOrder(false);
+          return;
+        }
+
+        setExistingOrderNumber(existingOrder.order_number);
+        if (existingOrder.doctor_id) {
+          setSelectedDoctorId(existingOrder.doctor_id);
+          initialDoctorIdRef.current = existingOrder.doctor_id;
+        }
+        if (existingOrder.payment_status) {
+          setPaymentStatus(existingOrder.payment_status);
+        }
+        if (existingOrder.payment_mode) {
+          setPaymentMode(existingOrder.payment_mode);
+        }
+
+        // Parse special discount from notes
+        const rawNotes = existingOrder.notes || '';
+        const match = rawNotes.match(/\[SPECIAL_DISCOUNT:amount=([0-9.]+);type=(percent|fixed);value=([0-9.]+);doctor=([^\]]*)\]/);
+        if (match) {
+          const type = match[2] as 'percent' | 'fixed';
+          const val = parseFloat(match[3]) || 0;
+          setDiscountType(type);
+          setDiscountInputValue(String(val));
+          setAppliedSpecialDiscount({
+            type,
+            value: val,
+            doctor_name: decodeURIComponent(match[4] || existingOrder.doctor?.doctor_name || ''),
+          });
+          const cleaned = rawNotes
+            .replace(/\[SPECIAL_DISCOUNT:[^\]]+\]\n?/, '')
+            .replace(/🎯 Special One-Time Discount Applied:[^\n]+\n?/, '')
+            .trim();
+          setNotes(cleaned);
+        } else {
+          setNotes(rawNotes);
+        }
+
+        // Populate items
+        if (existingOrder.order_items && existingOrder.order_items.length > 0) {
+          const mappedItems: OrderItem[] = existingOrder.order_items.map((item) => ({
+            medicine_id: item.medicine_id,
+            medicine_name_snapshot: item.medicine_name_snapshot || item.medicine?.medicine_name || 'Medicine',
+            medicine_name: item.medicine?.medicine_name || item.medicine_name_snapshot,
+            packing: item.medicine?.packing || item.packing || '10 TAB',
+            quantity: item.quantity,
+            rate: item.rate,
+            discount_percent: item.discount_percent || 0,
+            gst_percent: item.gst_percent || 12,
+          }));
+          setOrderItems(mappedItems);
+        }
+        hasLoadedExistingRef.current = true;
+      })
+      .catch((err) => {
+        console.error('Failed to load order for editing:', err);
+        if (isMounted) setErrorMsg('Failed to load order details for editing.');
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingOrder(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [orderId]);
+
   // When doctor is selected, fetch doctor-specific special rates
   useEffect(() => {
     if (!selectedDoctorId) {
@@ -126,22 +223,24 @@ export const NewOrder: React.FC = () => {
       });
       setDoctorCustomRates(rateMap);
 
-      // Recalculate existing line items if special rates exist
-      setOrderItems((prev) =>
-        prev.map((item) => {
-          const custom = rateMap[item.medicine_id];
-          if (custom) {
-            return {
-              ...item,
-              rate: custom.rate,
-              discount_percent: custom.discount_percent || item.discount_percent,
-            };
-          }
-          return item;
-        })
-      );
+      // Recalculate existing line items if special rates exist, unless we just loaded an existing order with its saved rates
+      if (!isEditMode || !hasLoadedExistingRef.current || selectedDoctorId !== initialDoctorIdRef.current) {
+        setOrderItems((prev) =>
+          prev.map((item) => {
+            const custom = rateMap[item.medicine_id];
+            if (custom) {
+              return {
+                ...item,
+                rate: custom.rate,
+                discount_percent: custom.discount_percent || item.discount_percent,
+              };
+            }
+            return item;
+          })
+        );
+      }
     });
-  }, [selectedDoctorId, getDoctorRates]);
+  }, [selectedDoctorId, getDoctorRates, isEditMode]);
 
   // Add selected medicine to order
   const handleAddMedicine = () => {
@@ -195,7 +294,46 @@ export const NewOrder: React.FC = () => {
     setOrderItems((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  const totals = CalculationsEngine.calculateOrderTotals(orderItems);
+  // Special discount handlers
+  const handleApplySpecialDiscount = (typeToUse = discountType, valToUse = discountInputValue) => {
+    const val = parseFloat(valToUse);
+    if (isNaN(val) || val <= 0) {
+      setErrorMsg('Please enter a valid special discount value greater than 0.');
+      return;
+    }
+
+    if (typeToUse === 'percent' && val > 100) {
+      setErrorMsg('Special discount percentage cannot exceed 100%.');
+      return;
+    }
+
+    const config: SpecialDiscountConfig = {
+      type: typeToUse,
+      value: val,
+      doctor_name: selectedDoctor?.doctor_name,
+    };
+
+    setAppliedSpecialDiscount(config);
+    setErrorMsg(null);
+    const label = typeToUse === 'percent' ? `${val}%` : formatINR(val);
+    const docNotice = selectedDoctor ? ` for Dr. ${selectedDoctor.doctor_name}` : '';
+    setDiscountSuccessNotice(`Special discount of ${label} calculated & applied successfully${docNotice}!`);
+    setTimeout(() => setDiscountSuccessNotice(null), 3500);
+  };
+
+  const handleQuickPresetDiscount = (type: 'percent' | 'fixed', val: number) => {
+    setDiscountType(type);
+    setDiscountInputValue(String(val));
+    handleApplySpecialDiscount(type, String(val));
+  };
+
+  const handleRemoveSpecialDiscount = () => {
+    setAppliedSpecialDiscount(null);
+    setDiscountInputValue('');
+    setDiscountSuccessNotice(null);
+  };
+
+  const totals = CalculationsEngine.calculateOrderTotals(orderItems, appliedSpecialDiscount);
 
   const handleSubmitOrder = async () => {
     setErrorMsg(null);
@@ -218,7 +356,11 @@ export const NewOrder: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await createOrder(selectedDoctorId, validItems, paymentStatus, paymentMode, notes);
+      if (isEditMode && orderId) {
+        await updateOrder(orderId, selectedDoctorId, validItems, paymentStatus, paymentMode, notes, appliedSpecialDiscount);
+      } else {
+        await createOrder(selectedDoctorId, validItems, paymentStatus, paymentMode, notes, appliedSpecialDiscount);
+      }
       navigate('/orders');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to submit order';
@@ -239,10 +381,30 @@ export const NewOrder: React.FC = () => {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">New Order Entry</h1>
-          <p className="text-xs text-slate-500">Build transaction invoice receipts in 3 quick steps.</p>
+          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl flex items-center gap-2">
+            {isEditMode ? (
+              <>
+                <Edit3 className="h-5 w-5 text-indigo-600" />
+                <span>Edit Order ({existingOrderNumber || '...'})</span>
+              </>
+            ) : (
+              <span>New Order Entry</span>
+            )}
+          </h1>
+          <p className="text-xs text-slate-500">
+            {isEditMode
+              ? 'Modify doctor, line items, quantities, discounts, notes, and invoice details.'
+              : 'Build transaction invoice receipts in 3 quick steps.'}
+          </p>
         </div>
       </div>
+
+      {isLoadingOrder && (
+        <div className="flex items-center justify-center gap-2 rounded-xl bg-indigo-50 p-6 border border-indigo-100 text-xs text-indigo-700 font-semibold">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Loading existing order data...</span>
+        </div>
+      )}
 
       {errorMsg && (
         <div className="flex items-center gap-2 rounded-xl bg-rose-50 p-4 border border-rose-200 text-xs text-rose-700 font-semibold">
@@ -491,6 +653,183 @@ export const NewOrder: React.FC = () => {
         </div>
       </div>
 
+      {/* Special One-Time Order Discount Card */}
+      <div
+        className={`rounded-2xl border border-indigo-200/80 bg-gradient-to-br from-indigo-50/50 via-white to-purple-50/30 p-5 shadow-xs space-y-4 transition-all ${
+          orderItems.length === 0 || !selectedDoctorId ? 'opacity-50 pointer-events-none' : ''
+        }`}
+      >
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs">
+              <Tag className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                <span>Special One-Time Order Discount</span>
+                <span className="rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5">
+                  One-Time Offer
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                {selectedDoctor ? (
+                  <span>
+                    Apply special order-level discount for <strong>Dr. {selectedDoctor.doctor_name}</strong>
+                    {selectedDoctor.clinic_name ? ` (${selectedDoctor.clinic_name})` : ''}
+                  </span>
+                ) : (
+                  'Select a doctor above to unlock doctor-specific discount'
+                )}
+              </p>
+            </div>
+          </div>
+
+          {appliedSpecialDiscount && (
+            <button
+              type="button"
+              onClick={handleRemoveSpecialDiscount}
+              className="flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+              <span>Remove Discount</span>
+            </button>
+          )}
+        </div>
+
+        {discountSuccessNotice && (
+          <div className="flex items-center gap-2 rounded-xl bg-emerald-50 p-3 border border-emerald-200 text-xs font-semibold text-emerald-800 animate-in fade-in">
+            <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span>{discountSuccessNotice}</span>
+          </div>
+        )}
+
+        {/* Discount Type Selector & Presets */}
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {/* Unit Toggle: % vs ₹ */}
+            <div className="flex items-center rounded-xl bg-slate-100 p-1 border border-slate-200 w-fit shrink-0">
+              <button
+                type="button"
+                onClick={() => setDiscountType('percent')}
+                className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  discountType === 'percent'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Percent className="h-3.5 w-3.5" />
+                <span>Percentage (%)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDiscountType('fixed')}
+                className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  discountType === 'fixed'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Flat (₹)</span>
+              </button>
+            </div>
+
+            {/* Quick Presets */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[11px] font-bold text-slate-400 mr-1">Quick Presets:</span>
+              {discountType === 'percent' ? (
+                <>
+                  {[5, 10, 15, 20].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => handleQuickPresetDiscount('percent', pct)}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all border ${
+                        appliedSpecialDiscount?.type === 'percent' && appliedSpecialDiscount.value === pct
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </>
+              ) : (
+                <>
+                  {[100, 200, 500, 1000].map((flat) => (
+                    <button
+                      key={flat}
+                      type="button"
+                      onClick={() => handleQuickPresetDiscount('fixed', flat)}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-all border ${
+                        appliedSpecialDiscount?.type === 'fixed' && appliedSpecialDiscount.value === flat
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      ₹{flat}
+                    </button>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Input & Specific "Apply Special Discount" Button */}
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            <div className="relative flex-1 w-full">
+              <div className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">
+                {discountType === 'percent' ? '%' : '₹'}
+              </div>
+              <input
+                type="number"
+                min="0"
+                max={discountType === 'percent' ? 100 : totals.taxable_amount}
+                step={discountType === 'percent' ? '0.5' : '10'}
+                value={discountInputValue}
+                onChange={(e) => setDiscountInputValue(e.target.value)}
+                placeholder={
+                  discountType === 'percent'
+                    ? 'Enter custom discount percentage (e.g. 12)'
+                    : 'Enter custom discount rupee amount (e.g. 250)'
+                }
+                className="w-full rounded-xl border border-slate-200 pl-8 pr-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-800 focus:border-indigo-500 focus:outline-none bg-white shadow-xs"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleApplySpecialDiscount()}
+              disabled={!discountInputValue || parseFloat(discountInputValue) <= 0}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white hover:bg-indigo-700 shadow-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              <Sparkles className="h-4 w-4 text-amber-300" />
+              <span>Calculate & Apply Discount</span>
+            </button>
+          </div>
+
+          {/* Active Discount Callout */}
+          {appliedSpecialDiscount && totals.special_discount_amount > 0 && (
+            <div className="flex items-center justify-between rounded-xl bg-emerald-50 p-3.5 border border-emerald-200 text-xs text-emerald-900 flex-wrap gap-2">
+              <div className="space-y-0.5">
+                <div className="font-bold flex items-center gap-1.5">
+                  <CheckCircle className="h-4 w-4 text-emerald-600" />
+                  <span>
+                    Special Discount Active: {appliedSpecialDiscount.type === 'percent' ? `${appliedSpecialDiscount.value}%` : formatINR(appliedSpecialDiscount.value)} Off
+                  </span>
+                </div>
+                <div className="text-[11px] text-emerald-700">
+                  Applied for <strong>Dr. {selectedDoctor?.doctor_name || 'Selected Doctor'}</strong> • You are saving {formatINR(totals.special_discount_amount)} on this order
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase font-bold text-emerald-700">Special Discount</span>
+                <div className="text-sm font-extrabold text-emerald-800">-{formatINR(totals.special_discount_amount)}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Step 3: Tax Calculation & Checkout Card */}
       <div
         className={`rounded-2xl border border-slate-200 bg-white p-5 shadow-xs space-y-4 transition-all ${
@@ -542,15 +881,26 @@ export const NewOrder: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-2 text-xs">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-2.5 text-xs">
               <div className="flex justify-between text-slate-600">
                 <span>Gross Subtotal:</span>
                 <span className="font-semibold">{formatINR(totals.gross_subtotal)}</span>
               </div>
-              <div className="flex justify-between text-rose-600">
-                <span>Discounts:</span>
-                <span className="font-semibold">-{formatINR(totals.discount_amount)}</span>
-              </div>
+              {totals.items_discount_amount > 0 && (
+                <div className="flex justify-between text-rose-600">
+                  <span>Line Item Discounts:</span>
+                  <span className="font-semibold">-{formatINR(totals.items_discount_amount)}</span>
+                </div>
+              )}
+              {totals.special_discount_amount > 0 && (
+                <div className="flex justify-between items-center bg-emerald-100/70 text-emerald-800 px-2.5 py-1.5 rounded-lg border border-emerald-200 font-bold">
+                  <div className="flex items-center gap-1">
+                    <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
+                    <span>Special Doctor Discount ({selectedDoctor?.doctor_name ? `Dr. ${selectedDoctor.doctor_name}` : 'Special'}):</span>
+                  </div>
+                  <span className="font-extrabold text-emerald-900">-{formatINR(totals.special_discount_amount)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-slate-600">
                 <span>Taxable Total:</span>
                 <span className="font-semibold">{formatINR(totals.taxable_amount)}</span>
@@ -559,20 +909,52 @@ export const NewOrder: React.FC = () => {
                 <span>GST Tax Total:</span>
                 <span className="font-semibold">+{formatINR(totals.gst_amount)}</span>
               </div>
-              <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-bold text-indigo-700">
-                <span>Total Payable:</span>
-                <span>{formatINR(totals.total_amount)}</span>
+
+              <div className="border-t border-slate-200 pt-3">
+                <div className="flex justify-between items-center rounded-xl bg-indigo-50/80 p-3 border border-indigo-100 text-indigo-900">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-indigo-600 tracking-wider">Final Price Payable</span>
+                    <div className="text-base font-extrabold text-indigo-950">{formatINR(totals.total_amount)}</div>
+                    {totals.discount_amount > 0 && (
+                      <span className="text-[10px] font-bold text-emerald-700">
+                        Total Savings: {formatINR(totals.discount_amount)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    {selectedDoctor && (
+                      <div className="text-[11px] font-semibold text-indigo-800">
+                        Dr. {selectedDoctor.doctor_name}
+                      </div>
+                    )}
+                    <span className="text-[10px] text-slate-500">All Taxes Included</span>
+                  </div>
+                </div>
               </div>
             </div>
 
             <button
               onClick={handleSubmitOrder}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isLoadingOrder}
               type="button"
               className="w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 text-sm font-semibold text-white hover:bg-indigo-700 shadow-md transition-colors disabled:opacity-50"
             >
-              <CheckCircle className="h-5 w-5" />
-              <span>{isSubmitting ? 'Generating Invoice...' : 'Generate Order Invoice'}</span>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>{isEditMode ? 'Updating Order Changes...' : 'Generating Invoice...'}</span>
+                </>
+              ) : isEditMode ? (
+                <>
+                  <Save className="h-5 w-5" />
+                  <span>Update & Save Order Changes</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-5 w-5" />
+                  <span>Generate Order Invoice</span>
+                </>
+              )}
             </button>
           </div>
         </div>

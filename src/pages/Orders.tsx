@@ -25,10 +25,41 @@ import {
   Share2,
   Copy,
   Check,
+  Sparkles,
+  Tag,
+  Trash2,
+  Edit3,
+  Loader2,
+  MessageSquare,
+  Phone,
 } from 'lucide-react';
 
+interface ParsedSpecialDiscount {
+  amount: number;
+  type: 'percent' | 'fixed';
+  value: number;
+  doctorName?: string;
+}
+
+const parseSpecialDiscount = (notes?: string | null): ParsedSpecialDiscount | null => {
+  if (!notes) return null;
+  const match = notes.match(/\[SPECIAL_DISCOUNT:amount=([0-9.]+);type=(percent|fixed);value=([0-9.]+);doctor=([^\]]*)\]/);
+  if (!match) return null;
+  return {
+    amount: parseFloat(match[1]) || 0,
+    type: match[2] as 'percent' | 'fixed',
+    value: parseFloat(match[3]) || 0,
+    doctorName: decodeURIComponent(match[4] || ''),
+  };
+};
+
+const cleanOrderNotes = (notes?: string | null): string => {
+  if (!notes) return '';
+  return notes.replace(/\[SPECIAL_DISCOUNT:[^\]]+\]\n?/, '').trim();
+};
+
 export const Orders: React.FC = () => {
-  const { orders, isLoading, searchQuery, setSearchQuery, updatePayment } = useOrders();
+  const { orders, isLoading, searchQuery, setSearchQuery, updatePayment, deleteOrder } = useOrders();
   const { doctors } = useDoctors();
   const [searchParams] = useSearchParams();
 
@@ -38,6 +69,19 @@ export const Orders: React.FC = () => {
   const [expandedDoctors, setExpandedDoctors] = useState<Record<string, boolean>>({});
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
   const [copyToast, setCopyToast] = useState<string | null>(null);
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  // WhatsApp Direct Dispatch Number Configuration
+  const [whatsappConfigModalOpen, setWhatsappConfigModalOpen] = useState(false);
+  const [dispatchWhatsAppNumber, setDispatchWhatsAppNumber] = useState<string>(() => {
+    return localStorage.getItem('mr_whatsapp_dispatch_number') || '';
+  });
+  const [tempWhatsAppNumber, setTempWhatsAppNumber] = useState<string>('');
+  const [targetSendType, setTargetSendType] = useState<'configured' | 'doctor'>(() => {
+    return (localStorage.getItem('mr_whatsapp_target_type') as 'configured' | 'doctor') || 'configured';
+  });
+  const [pendingShareOrder, setPendingShareOrder] = useState<Order | null>(null);
 
   // Sync active tab with URL parameter if present
   useEffect(() => {
@@ -119,16 +163,61 @@ export const Orders: React.FC = () => {
     }
   };
 
-  const handleWhatsAppShare = (order: Order) => {
+  const sendOrderToWhatsApp = (order: Order, targetNumber?: string) => {
     const text = generateOrderShareText(order);
-    const phone = (order.doctor?.phone || '').replace(/[^0-9]/g, '');
-    const targetPhone = phone.length === 10 ? `91${phone}` : phone;
+    const rawNumber = (targetNumber || '').replace(/[^0-9]/g, '');
+    const finalPhone = rawNumber.length === 10 ? `91${rawNumber}` : rawNumber;
 
-    const url = targetPhone
-      ? `https://wa.me/${targetPhone}?text=${encodeURIComponent(text)}`
+    const url = finalPhone
+      ? `https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`
       : `https://wa.me/?text=${encodeURIComponent(text)}`;
 
     window.open(url, '_blank');
+  };
+
+  const handleWhatsAppShare = (order: Order) => {
+    if (targetSendType === 'doctor') {
+      const docPhone = order.doctor?.phone || '';
+      sendOrderToWhatsApp(order, docPhone);
+      return;
+    }
+
+    const savedNumber = localStorage.getItem('mr_whatsapp_dispatch_number') || dispatchWhatsAppNumber;
+    if (savedNumber && savedNumber.trim()) {
+      sendOrderToWhatsApp(order, savedNumber);
+    } else {
+      // Prompt config modal directly so user can configure once and immediately send
+      setPendingShareOrder(order);
+      setTempWhatsAppNumber('');
+      setWhatsappConfigModalOpen(true);
+    }
+  };
+
+  const handleSaveWhatsAppConfig = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanNumber = tempWhatsAppNumber.replace(/[^0-9]/g, '');
+    localStorage.setItem('mr_whatsapp_dispatch_number', cleanNumber);
+    localStorage.setItem('mr_whatsapp_target_type', targetSendType);
+    setDispatchWhatsAppNumber(cleanNumber);
+    setWhatsappConfigModalOpen(false);
+
+    setCopyToast('WhatsApp dispatch configuration saved! 📱');
+    setTimeout(() => setCopyToast(null), 2500);
+
+    // If user clicked Send on an order before configuring, send it immediately
+    if (pendingShareOrder) {
+      const orderToSend = pendingShareOrder;
+      setPendingShareOrder(null);
+      sendOrderToWhatsApp(orderToSend, targetSendType === 'doctor' ? (orderToSend.doctor?.phone || '') : cleanNumber);
+    }
+  };
+
+  const handleClearWhatsAppConfig = () => {
+    localStorage.removeItem('mr_whatsapp_dispatch_number');
+    setDispatchWhatsAppNumber('');
+    setTempWhatsAppNumber('');
+    setCopyToast('WhatsApp configuration cleared');
+    setTimeout(() => setCopyToast(null), 2000);
   };
 
   const handleNativeShare = async (order: Order) => {
@@ -174,6 +263,26 @@ export const Orders: React.FC = () => {
       : `https://wa.me/?text=${encodeURIComponent(message)}`;
 
     window.open(url, '_blank');
+  };
+
+  // Delete Order confirmation action
+  const handleDeleteOrder = async () => {
+    if (!orderToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteOrder(orderToDelete.id);
+      if (viewingOrder?.id === orderToDelete.id) {
+        setViewingOrder(null);
+      }
+      setCopyToast(`Order ${orderToDelete.order_number} deleted successfully.`);
+      setTimeout(() => setCopyToast(null), 3000);
+      setOrderToDelete(null);
+    } catch (err: unknown) {
+      console.error('Failed to delete order:', err);
+      alert('Failed to delete order. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Compute overdue & payment metrics
@@ -289,13 +398,35 @@ export const Orders: React.FC = () => {
           </p>
         </div>
 
-        <Link
-          to="/orders/new"
-          className="flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 shadow-sm transition-all"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Create New Order</span>
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => {
+              setTempWhatsAppNumber(dispatchWhatsAppNumber);
+              setWhatsappConfigModalOpen(true);
+            }}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100/90 px-3.5 py-2 text-xs font-semibold text-emerald-800 shadow-2xs transition-all"
+            title="Configure Default WhatsApp Order Dispatch Number"
+          >
+            <MessageSquare className="h-4 w-4 text-emerald-600" />
+            <span>WhatsApp Config</span>
+            {dispatchWhatsAppNumber ? (
+              <span className="inline-flex items-center rounded-md bg-emerald-200/80 px-1.5 py-0.5 text-[10px] font-bold text-emerald-900">
+                {dispatchWhatsAppNumber.slice(-4).padStart(dispatchWhatsAppNumber.length, '•')}
+              </span>
+            ) : (
+              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" title="Not configured yet" />
+            )}
+          </button>
+
+          <Link
+            to="/orders/new"
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 shadow-sm transition-all"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Create New Order</span>
+          </Link>
+        </div>
       </div>
 
       {/* 🚨 1-Month Overdue Payment Reminder Alert Banner */}
@@ -540,11 +671,24 @@ export const Orders: React.FC = () => {
 
                               <div className="flex items-center justify-between">
                                 <div className="text-xs font-bold text-slate-700">Total Payable:</div>
-                                <div className="text-sm font-extrabold text-slate-900">{formatINR(o.total_amount)}</div>
+                                <div className="text-right">
+                                  <div className="text-sm font-extrabold text-slate-900">{formatINR(o.total_amount)}</div>
+                                  {(() => {
+                                    const disc = parseSpecialDiscount(o.notes);
+                                    if (!disc || disc.amount <= 0) return null;
+                                    return (
+                                      <div className="text-[10px] font-bold text-emerald-600 flex items-center justify-end gap-1">
+                                        <Sparkles className="h-3 w-3 shrink-0" />
+                                        <span>Special Disc: -{formatINR(disc.amount)}</span>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
                               </div>
 
-                              <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                                <div className="flex items-center gap-1.5">
+                              {/* Row 3: Payment Status & Mode Controls */}
+                              <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100">
+                                <div className="flex items-center gap-1.5 flex-wrap">
                                   <select
                                     value={o.payment_status || 'pending'}
                                     onChange={(e) => updatePayment(o.id, e.target.value as PaymentStatus, o.payment_mode)}
@@ -570,29 +714,57 @@ export const Orders: React.FC = () => {
                                   </select>
                                 </div>
 
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => handleWhatsAppShare(o)}
-                                    title="Share on WhatsApp"
-                                    className="p-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                                  >
-                                    <Send className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleCopyOrderText(o)}
-                                    title="Copy text"
-                                    className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                                  >
-                                    {isCopied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-400" />}
-                                  </button>
-                                  <button
-                                    onClick={() => setViewingOrder(o)}
-                                    className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                                  >
-                                    <Eye className="h-3.5 w-3.5 text-slate-400" />
-                                    <span>Invoice</span>
-                                  </button>
-                                </div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                  Actions
+                                </span>
+                              </div>
+
+                              {/* Row 4: 5 Action Buttons Grid - guaranteed no edge overflow on any screen */}
+                              <div className="grid grid-cols-5 gap-1.5 pt-1">
+                                <Link
+                                  to={`/orders/edit/${o.id}`}
+                                  title="Edit order"
+                                  className="flex items-center justify-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50/80 py-1.5 px-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100 active:bg-indigo-200 transition-colors shadow-2xs"
+                                >
+                                  <Edit3 className="h-3.5 w-3.5 shrink-0" />
+                                  <span className="text-[10px] sm:text-[11px]">Edit</span>
+                                </Link>
+
+                                <button
+                                  onClick={() => handleWhatsAppShare(o)}
+                                  title="Share on WhatsApp"
+                                  className="flex items-center justify-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50/80 py-1.5 px-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 active:bg-emerald-200 transition-colors shadow-2xs"
+                                >
+                                  <Send className="h-3.5 w-3.5 shrink-0" />
+                                  <span className="text-[10px] sm:text-[11px]">Share</span>
+                                </button>
+
+                                <button
+                                  onClick={() => handleCopyOrderText(o)}
+                                  title="Copy text"
+                                  className="flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white py-1.5 px-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-2xs"
+                                >
+                                  {isCopied ? <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> : <Copy className="h-3.5 w-3.5 text-slate-500 shrink-0" />}
+                                  <span className="text-[10px] sm:text-[11px]">{isCopied ? 'Done' : 'Copy'}</span>
+                                </button>
+
+                                <button
+                                  onClick={() => setViewingOrder(o)}
+                                  title="View Invoice"
+                                  className="flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white py-1.5 px-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-2xs"
+                                >
+                                  <Eye className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                                  <span className="text-[10px] sm:text-[11px]">Invoice</span>
+                                </button>
+
+                                <button
+                                  onClick={() => setOrderToDelete(o)}
+                                  title="Delete order"
+                                  className="flex items-center justify-center gap-1 rounded-xl border border-rose-200 bg-rose-50/80 py-1.5 px-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 active:bg-rose-200 transition-colors shadow-2xs"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                                  <span className="text-[10px] sm:text-[11px]">Delete</span>
+                                </button>
                               </div>
                             </div>
                           );
@@ -620,7 +792,19 @@ export const Orders: React.FC = () => {
                                 <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
                                   <td className="px-4 py-3 font-bold text-indigo-600">{o.order_number}</td>
                                   <td className="px-4 py-3 text-slate-500">{formatDate(o.order_date)}</td>
-                                  <td className="px-4 py-3 font-bold text-slate-900">{formatINR(o.total_amount)}</td>
+                                  <td className="px-4 py-3 font-bold text-slate-900">
+                                    <div>{formatINR(o.total_amount)}</div>
+                                    {(() => {
+                                      const disc = parseSpecialDiscount(o.notes);
+                                      if (!disc || disc.amount <= 0) return null;
+                                      return (
+                                        <div className="text-[10px] font-extrabold text-emerald-700 flex items-center gap-1 mt-0.5">
+                                          <Sparkles className="h-3 w-3 shrink-0" />
+                                          <span>Special Disc: -{formatINR(disc.amount)}</span>
+                                        </div>
+                                      );
+                                    })()}
+                                  </td>
 
                                   {/* Interactive Payment Status Selector */}
                                   <td className="px-4 py-3">
@@ -656,6 +840,14 @@ export const Orders: React.FC = () => {
 
                                   <td className="px-4 py-3 text-right">
                                     <div className="flex items-center justify-end gap-1.5">
+                                      <Link
+                                        to={`/orders/edit/${o.id}`}
+                                        title="Edit this order"
+                                        className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
+                                      >
+                                        <Edit3 className="h-3.5 w-3.5" />
+                                        <span>Edit</span>
+                                      </Link>
                                       <button
                                         onClick={() => handleWhatsAppShare(o)}
                                         title="Share this order details on WhatsApp"
@@ -678,6 +870,14 @@ export const Orders: React.FC = () => {
                                       >
                                         <Eye className="h-3.5 w-3.5 text-slate-400" />
                                         <span>Invoice</span>
+                                      </button>
+                                      <button
+                                        onClick={() => setOrderToDelete(o)}
+                                        title="Delete this order"
+                                        className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        <span>Delete</span>
                                       </button>
                                     </div>
                                   </td>
@@ -746,12 +946,22 @@ export const Orders: React.FC = () => {
                         </div>
                         <div className="text-right shrink-0">
                           <div className="text-base font-extrabold text-slate-900">{formatINR(o.total_amount)}</div>
+                          {(() => {
+                            const disc = parseSpecialDiscount(o.notes);
+                            if (!disc || disc.amount <= 0) return null;
+                            return (
+                              <div className="text-[10px] font-bold text-emerald-600 flex items-center justify-end gap-1">
+                                <Sparkles className="h-3 w-3 shrink-0" />
+                                <span>Special Disc: -{formatINR(disc.amount)}</span>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
 
-                      {/* Row 3: Payment Status & Controls */}
-                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                        <div className="flex items-center gap-1.5">
+                      {/* Row 3: Payment Status & Mode Controls */}
+                      <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <select
                             value={o.payment_status || 'pending'}
                             onChange={(e) => updatePayment(o.id, e.target.value as PaymentStatus, o.payment_mode)}
@@ -777,29 +987,57 @@ export const Orders: React.FC = () => {
                           </select>
                         </div>
 
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleWhatsAppShare(o)}
-                            title="Share on WhatsApp"
-                            className="p-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                          >
-                            <Send className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleCopyOrderText(o)}
-                            title="Copy text"
-                            className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                          >
-                            {isCopied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-400" />}
-                          </button>
-                          <button
-                            onClick={() => setViewingOrder(o)}
-                            className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                          >
-                            <Eye className="h-3.5 w-3.5 text-slate-400" />
-                            <span>Invoice</span>
-                          </button>
-                        </div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                          Actions
+                        </span>
+                      </div>
+
+                      {/* Row 4: 5 Action Buttons Grid - guaranteed no edge overflow on any screen */}
+                      <div className="grid grid-cols-5 gap-1.5 pt-1">
+                        <Link
+                          to={`/orders/edit/${o.id}`}
+                          title="Edit order"
+                          className="flex items-center justify-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50/80 py-1.5 px-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100 active:bg-indigo-200 transition-colors shadow-2xs"
+                        >
+                          <Edit3 className="h-3.5 w-3.5 shrink-0" />
+                          <span className="text-[10px] sm:text-[11px]">Edit</span>
+                        </Link>
+
+                        <button
+                          onClick={() => handleWhatsAppShare(o)}
+                          title="Share on WhatsApp"
+                          className="flex items-center justify-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50/80 py-1.5 px-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 active:bg-emerald-200 transition-colors shadow-2xs"
+                        >
+                          <Send className="h-3.5 w-3.5 shrink-0" />
+                          <span className="text-[10px] sm:text-[11px]">Share</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleCopyOrderText(o)}
+                          title="Copy text"
+                          className="flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white py-1.5 px-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-2xs"
+                        >
+                          {isCopied ? <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0" /> : <Copy className="h-3.5 w-3.5 text-slate-500 shrink-0" />}
+                          <span className="text-[10px] sm:text-[11px]">{isCopied ? 'Done' : 'Copy'}</span>
+                        </button>
+
+                        <button
+                          onClick={() => setViewingOrder(o)}
+                          title="View Invoice"
+                          className="flex items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white py-1.5 px-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors shadow-2xs"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                          <span className="text-[10px] sm:text-[11px]">Invoice</span>
+                        </button>
+
+                        <button
+                          onClick={() => setOrderToDelete(o)}
+                          title="Delete order"
+                          className="flex items-center justify-center gap-1 rounded-xl border border-rose-200 bg-rose-50/80 py-1.5 px-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 active:bg-rose-200 transition-colors shadow-2xs"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                          <span className="text-[10px] sm:text-[11px]">Delete</span>
+                        </button>
                       </div>
                     </div>
                   );
@@ -839,7 +1077,19 @@ export const Orders: React.FC = () => {
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3 font-bold text-slate-900">{formatINR(o.total_amount)}</td>
+                          <td className="px-4 py-3 font-bold text-slate-900">
+                            <div>{formatINR(o.total_amount)}</div>
+                            {(() => {
+                              const disc = parseSpecialDiscount(o.notes);
+                              if (!disc || disc.amount <= 0) return null;
+                              return (
+                                <div className="text-[10px] font-extrabold text-emerald-700 flex items-center gap-1 mt-0.5">
+                                  <Sparkles className="h-3 w-3 shrink-0" />
+                                  <span>Special Disc: -{formatINR(disc.amount)}</span>
+                                </div>
+                              );
+                            })()}
+                          </td>
 
                           {/* Interactive Payment Status Selector */}
                           <td className="px-4 py-3">
@@ -875,6 +1125,14 @@ export const Orders: React.FC = () => {
 
                           <td className="px-4 py-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
+                              <Link
+                                to={`/orders/edit/${o.id}`}
+                                title="Edit this order"
+                                className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
+                              >
+                                <Edit3 className="h-3.5 w-3.5" />
+                                <span>Edit</span>
+                              </Link>
                               <button
                                 onClick={() => handleWhatsAppShare(o)}
                                 title="Share this order details on WhatsApp"
@@ -898,6 +1156,14 @@ export const Orders: React.FC = () => {
                                 <Eye className="h-3.5 w-3.5 text-slate-400" />
                                 <span>Invoice</span>
                               </button>
+                              <button
+                                onClick={() => setOrderToDelete(o)}
+                                title="Delete this order"
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                <span>Delete</span>
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -916,43 +1182,60 @@ export const Orders: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
           <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Action Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 print:hidden flex-wrap gap-2">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4 print:hidden flex-wrap gap-2">
               <div>
-                <h2 className="font-bold text-slate-900 text-base">Invoice Receipt ({viewingOrder.order_number})</h2>
+                <h2 className="font-bold text-slate-900 text-sm sm:text-base">Invoice Receipt ({viewingOrder.order_number})</h2>
                 <p className="text-[11px] text-slate-400">Share single order receipt privately without exposing other data</p>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <Link
+                  to={`/orders/edit/${viewingOrder.id}`}
+                  className="flex items-center gap-1 sm:gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 shadow-xs"
+                >
+                  <Edit3 className="h-3.5 w-3.5" />
+                  <span className="hidden xs:inline">Edit</span>
+                </Link>
+
                 <button
                   onClick={() => handleWhatsAppShare(viewingOrder)}
-                  className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 shadow-xs"
+                  className="flex items-center gap-1 sm:gap-1.5 rounded-xl bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 shadow-xs"
                 >
                   <Send className="h-3.5 w-3.5" />
-                  <span>WhatsApp</span>
+                  <span className="hidden xs:inline">WhatsApp</span>
                 </button>
 
                 <button
                   onClick={() => handleNativeShare(viewingOrder)}
-                  className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
+                  className="flex items-center gap-1 sm:gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100"
                 >
                   <Share2 className="h-3.5 w-3.5" />
-                  <span>Share</span>
+                  <span className="hidden xs:inline">Share</span>
                 </button>
 
                 <button
                   onClick={() => handleCopyOrderText(viewingOrder)}
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  className="flex items-center gap-1 sm:gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
                 >
                   {copiedOrderId === viewingOrder.id ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-400" />}
-                  <span>{copiedOrderId === viewingOrder.id ? 'Copied!' : 'Copy'}</span>
+                  <span>{copiedOrderId === viewingOrder.id ? 'Copied' : 'Copy'}</span>
                 </button>
 
                 <button
                   onClick={handlePrint}
-                  className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                  className="flex items-center gap-1 sm:gap-1.5 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
                 >
                   <Printer className="h-4 w-4" />
-                  <span>Print PDF</span>
+                  <span>Print</span>
+                </button>
+
+                <button
+                  onClick={() => setOrderToDelete(viewingOrder)}
+                  title="Delete order"
+                  className="flex items-center gap-1 sm:gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 shadow-xs"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span className="hidden xs:inline">Delete</span>
                 </button>
 
                 <button onClick={() => setViewingOrder(null)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
@@ -1045,26 +1328,268 @@ export const Orders: React.FC = () => {
               </table>
 
               {/* Invoice Totals */}
-              <div className="flex justify-end border-t border-slate-200 pt-4">
-                <div className="w-64 space-y-1.5 text-xs">
-                  <div className="flex justify-between text-slate-600">
-                    <span>Gross Subtotal:</span>
-                    <span>{formatINR(viewingOrder.subtotal)}</span>
+              {(() => {
+                const viewingSpecialDisc = parseSpecialDiscount(viewingOrder.notes);
+                const itemDiscounts = Math.max(0, viewingOrder.discount_amount - (viewingSpecialDisc?.amount || 0));
+                return (
+                  <div className="space-y-4 border-t border-slate-200 pt-4">
+                    {cleanOrderNotes(viewingOrder.notes) && (
+                      <div className="rounded-xl bg-slate-50 p-3 border border-slate-200/60 text-xs">
+                        <span className="font-bold text-slate-700">Order Notes:</span>
+                        <p className="text-slate-600 mt-0.5 whitespace-pre-line">{cleanOrderNotes(viewingOrder.notes)}</p>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end">
+                      <div className="w-80 space-y-2 text-xs">
+                        <div className="flex justify-between text-slate-600">
+                          <span>Gross Subtotal:</span>
+                          <span className="font-semibold">{formatINR(viewingOrder.subtotal)}</span>
+                        </div>
+                        {itemDiscounts > 0 && (
+                          <div className="flex justify-between text-rose-600">
+                            <span>Line Items Discount:</span>
+                            <span className="font-semibold">-{formatINR(itemDiscounts)}</span>
+                          </div>
+                        )}
+                        {viewingSpecialDisc && viewingSpecialDisc.amount > 0 && (
+                          <div className="flex justify-between items-center bg-emerald-50 text-emerald-800 px-2.5 py-1.5 rounded-lg border border-emerald-200 font-bold">
+                            <div className="flex items-center gap-1">
+                              <Sparkles className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                              <span>
+                                Special Discount ({viewingSpecialDisc.type === 'percent' ? `${viewingSpecialDisc.value}%` : 'Flat'} - Dr. {viewingOrder.doctor?.doctor_name || viewingSpecialDisc.doctorName}):
+                              </span>
+                            </div>
+                            <span className="font-extrabold text-emerald-900">-{formatINR(viewingSpecialDisc.amount)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-amber-600">
+                          <span>GST Tax Total:</span>
+                          <span className="font-semibold">+{formatINR(viewingOrder.gst_amount)}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-t border-slate-300 pt-2.5 bg-indigo-50/80 p-3 rounded-xl text-indigo-950 font-extrabold">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-indigo-600 block">Final Price Payable</span>
+                            <span className="text-base font-extrabold text-indigo-900">{formatINR(viewingOrder.total_amount)}</span>
+                          </div>
+                          {viewingOrder.discount_amount > 0 && (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md">
+                              Saved: {formatINR(viewingOrder.discount_amount)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-rose-600">
-                    <span>Discount:</span>
-                    <span>-{formatINR(viewingOrder.discount_amount)}</span>
-                  </div>
-                  <div className="flex justify-between text-amber-600">
-                    <span>GST Tax:</span>
-                    <span>+{formatINR(viewingOrder.gst_amount)}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-slate-300 pt-2 text-sm font-bold text-indigo-700">
-                    <span>Total Amount Payable:</span>
-                    <span>{formatINR(viewingOrder.total_amount)}</span>
-                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Configuration Modal */}
+      {whatsappConfigModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-100 overflow-hidden space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 bg-gradient-to-r from-emerald-50 via-emerald-50/50 to-white">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm shrink-0">
+                  <MessageSquare className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">WhatsApp Order Dispatch Config</h3>
+                  <p className="text-xs text-slate-500">Configure 1-tap direct order sending</p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setWhatsappConfigModalOpen(false);
+                  setPendingShareOrder(null);
+                }}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveWhatsAppConfig} className="p-5 space-y-4 pt-0">
+              {pendingShareOrder && (
+                <div className="rounded-xl bg-indigo-50 border border-indigo-200 p-3 text-xs text-indigo-900 flex items-center justify-between">
+                  <span>
+                    Sending Order: <strong>{pendingShareOrder.order_number}</strong> (Dr. {pendingShareOrder.doctor?.doctor_name})
+                  </span>
+                  <span className="text-[10px] font-bold bg-indigo-200/80 px-2 py-0.5 rounded-full text-indigo-950">Pending Send</span>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-800 block">
+                  Send Destination:
+                </label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setTargetSendType('configured')}
+                    className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                      targetSendType === 'configured'
+                        ? 'border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <span className={`h-2 w-2 rounded-full ${targetSendType === 'configured' ? 'bg-emerald-600' : 'bg-slate-300'}`} />
+                      Fixed Dispatch No.
+                    </span>
+                    <span className="text-[11px] text-slate-500 mt-1">
+                      Warehouse, distributor, stockist or agency
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTargetSendType('doctor')}
+                    className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all ${
+                      targetSendType === 'doctor'
+                        ? 'border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <span className={`h-2 w-2 rounded-full ${targetSendType === 'doctor' ? 'bg-emerald-600' : 'bg-slate-300'}`} />
+                      Doctor's Phone
+                    </span>
+                    <span className="text-[11px] text-slate-500 mt-1">
+                      Sends to doctor's mobile from doctor card
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {targetSendType === 'configured' && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-800 flex items-center justify-between">
+                    <span>Default Dispatch WhatsApp Number</span>
+                    <span className="text-[11px] font-normal text-slate-400">10-digit or with country code</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Phone className="h-4 w-4" />
+                    </div>
+                    <input
+                      type="tel"
+                      value={tempWhatsAppNumber}
+                      onChange={(e) => setTempWhatsAppNumber(e.target.value)}
+                      placeholder="e.g. 9876543210 or 919876543210"
+                      className="w-full rounded-xl border border-slate-200 pl-9 pr-3 py-2.5 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 transition-all"
+                      autoFocus
+                    />
+                  </div>
+                  {tempWhatsAppNumber.trim() && (
+                    <p className="text-[11px] text-emerald-700 font-medium">
+                      ✓ Direct link will target: <strong>{tempWhatsAppNumber.replace(/[^0-9]/g, '').length === 10 ? `+91 ${tempWhatsAppNumber.replace(/[^0-9]/g, '')}` : `+${tempWhatsAppNumber.replace(/[^0-9]/g, '')}`}</strong>
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="rounded-xl bg-slate-50 p-3 border border-slate-200 text-xs text-slate-600 leading-relaxed">
+                💡 <strong>1-Tap Instant Sending:</strong> Once saved, clicking the <Send className="h-3 w-3 inline text-emerald-600 mx-0.5" /> <strong>Send</strong> button on any order will instantly open WhatsApp without asking you for a contact number again.
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <div>
+                  {dispatchWhatsAppNumber && (
+                    <button
+                      type="button"
+                      onClick={handleClearWhatsAppConfig}
+                      className="text-xs font-medium text-rose-600 hover:text-rose-700 hover:underline"
+                    >
+                      Clear Number
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWhatsappConfigModalOpen(false);
+                      setPendingShareOrder(null);
+                    }}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={targetSendType === 'configured' && !tempWhatsAppNumber.trim()}
+                    className="flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2 text-xs font-bold text-white hover:bg-emerald-700 shadow-sm disabled:opacity-50 transition-all"
+                  >
+                    <Check className="h-4 w-4" />
+                    <span>{pendingShareOrder ? 'Save & Send Order' : 'Save Configuration'}</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Order Confirmation Modal */}
+      {orderToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl border border-slate-100 overflow-hidden p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600 shrink-0">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-slate-900">Delete Order Record?</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Are you sure you want to delete order <strong className="text-slate-800">{orderToDelete.order_number}</strong>? This will permanently remove all items and invoice history.
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 p-3 border border-slate-200 text-xs space-y-1.5">
+              <div className="flex justify-between text-slate-600">
+                <span>Doctor:</span>
+                <span className="font-bold text-slate-900">{orderToDelete.doctor?.doctor_name || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Clinic:</span>
+                <span className="font-semibold text-slate-700">{orderToDelete.doctor?.clinic_name || 'Clinic'}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Order Date:</span>
+                <span className="font-medium text-slate-700">{formatDate(orderToDelete.order_date)}</span>
+              </div>
+              <div className="flex justify-between text-slate-900 font-bold border-t border-slate-200 pt-1.5">
+                <span>Total Amount:</span>
+                <span className="text-indigo-700 font-extrabold">{formatINR(orderToDelete.total_amount)}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setOrderToDelete(null)}
+                disabled={isDeleting}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteOrder}
+                disabled={isDeleting}
+                className="flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700 shadow-sm disabled:opacity-50"
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                <span>{isDeleting ? 'Deleting...' : 'Delete Permanently'}</span>
+              </button>
             </div>
           </div>
         </div>

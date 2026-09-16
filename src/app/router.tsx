@@ -83,6 +83,7 @@ export const router = createBrowserRouter([
           { path: 'medicines', element: <Medicines /> },
           { path: 'orders', element: <Orders /> },
           { path: 'orders/new', element: <NewOrder /> },
+          { path: 'orders/edit/:orderId', element: <NewOrder /> },
           { path: 'import', element: <ImportMedicines /> },
           { path: 'settings', element: <SettingsPage /> },
         ],

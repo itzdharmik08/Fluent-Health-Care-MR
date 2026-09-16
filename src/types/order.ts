@@ -49,11 +49,23 @@ export interface LineItemCalculation {
   total_amount: number;
 }
 
+export interface SpecialDiscountConfig {
+  type: 'percent' | 'fixed';
+  value: number; // percentage (e.g. 10) or fixed amount in INR (e.g. 250)
+  amount?: number;
+  doctor_name?: string;
+  reason?: string;
+}
+
 export interface OrderTotalsCalculation {
   gross_subtotal: number;
-  discount_amount: number;
+  items_discount_amount: number;
+  special_discount_amount: number;
+  special_discount_percent?: number;
+  discount_amount: number; // Combined total discount (items + special)
   taxable_amount: number;
   gst_amount: number;
   total_amount: number;
   subtotal: number;
 }
+
