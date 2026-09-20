@@ -849,9 +849,13 @@ export const NewOrder: React.FC = () => {
                 <select
                   value={paymentStatus}
                   onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:outline-none"
+                  className={`w-full rounded-xl border px-3 py-2 text-xs font-bold transition-all focus:outline-none ${
+                    paymentStatus === 'paid'
+                      ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                      : 'border-rose-300 bg-rose-50 text-rose-800'
+                  }`}
                 >
-                  <option value="pending">Pending ⏳</option>
+                  <option value="pending">Unpaid / Pending ❌</option>
                   <option value="paid">Paid ✅</option>
                 </select>
               </div>

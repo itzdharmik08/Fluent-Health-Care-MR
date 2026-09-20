@@ -540,11 +540,11 @@ export const Orders: React.FC = () => {
             onClick={() => setActiveTab('pending')}
             className={`whitespace-nowrap rounded-xl px-4 py-2 text-xs font-semibold transition-all ${
               activeTab === 'pending'
-                ? 'bg-amber-600 text-white shadow-xs'
+                ? 'bg-rose-600 text-white shadow-xs'
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
             }`}
           >
-            Pending ({pendingOrders.length})
+            Unpaid / Pending ({pendingOrders.length})
           </button>
 
           <button
@@ -604,12 +604,24 @@ export const Orders: React.FC = () => {
           ) : (
             filteredDoctorGroups.map((group) => {
               const isExpanded = expandedDoctors[group.docId] !== false; // expanded by default
+              const hasUnpaid = group.pendingAmount > 0;
               return (
-                <div key={group.docId} className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+                <div
+                  key={group.docId}
+                  className={`rounded-2xl border-2 shadow-sm overflow-hidden transition-all ${
+                    hasUnpaid
+                      ? 'border-rose-300 bg-rose-50/50'
+                      : 'border-emerald-300 bg-emerald-50/50'
+                  }`}
+                >
                   {/* Doctor Group Card Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50/80 border-b border-slate-200 gap-3">
+                  <div className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b gap-3 ${
+                    hasUnpaid ? 'bg-rose-100/80 border-rose-200' : 'bg-emerald-100/80 border-emerald-200'
+                  }`}>
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700 font-bold shrink-0">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl font-bold shrink-0 ${
+                        hasUnpaid ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
+                      }`}>
                         <User className="h-5 w-5" />
                       </div>
                       <div>
@@ -635,12 +647,16 @@ export const Orders: React.FC = () => {
                         <span className="rounded-lg bg-white px-2.5 py-1 border border-slate-200 font-semibold text-slate-700">
                           {group.orders.length} Orders
                         </span>
-                        <span className="rounded-lg bg-emerald-50 px-2.5 py-1 border border-emerald-200 font-bold text-emerald-800">
+                        <span className="rounded-lg bg-white px-2.5 py-1 border border-slate-200 font-bold text-slate-900">
                           Total: {formatINR(group.totalAmount)}
                         </span>
-                        {group.pendingAmount > 0 && (
-                          <span className="rounded-lg bg-amber-50 px-2.5 py-1 border border-amber-200 font-bold text-amber-800">
-                            Pending: {formatINR(group.pendingAmount)}
+                        {group.pendingAmount > 0 ? (
+                          <span className="rounded-lg bg-rose-100 px-2.5 py-1 border border-rose-300 font-extrabold text-rose-800 flex items-center gap-1">
+                            <span>Unpaid: {formatINR(group.pendingAmount)}</span>
+                          </span>
+                        ) : (
+                          <span className="rounded-lg bg-emerald-100 px-2.5 py-1 border border-emerald-300 font-bold text-emerald-800 flex items-center gap-1">
+                            <span>All Bills Paid ✅</span>
                           </span>
                         )}
                       </div>
@@ -658,15 +674,34 @@ export const Orders: React.FC = () => {
                   {isExpanded && (
                     <div>
                       {/* Mobile Cards (sm:hidden) */}
-                      <div className="divide-y divide-slate-100 sm:hidden">
+                      <div className="p-3 space-y-3 sm:hidden">
                         {group.orders.map((o) => {
+                          const isPaid = o.payment_status === 'paid';
                           const overdue = getOverdueInfo(o.order_date, o.payment_status);
                           const isCopied = copiedOrderId === o.id;
                           return (
-                            <div key={o.id} className="p-3.5 space-y-2.5 bg-white hover:bg-slate-50/50">
+                            <div
+                              key={o.id}
+                              className={`p-4 space-y-3 rounded-xl border-2 transition-all shadow-xs ${
+                                isPaid
+                                  ? 'bg-emerald-100/70 hover:bg-emerald-100 border-emerald-300 text-slate-900'
+                                  : 'bg-rose-100/70 hover:bg-rose-100 border-rose-300 text-slate-900'
+                              }`}
+                            >
                               <div className="flex items-center justify-between">
-                                <span className="font-extrabold text-indigo-600 text-xs">{o.order_number}</span>
-                                <span className="text-xs text-slate-500">{formatDate(o.order_date)}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-extrabold text-indigo-700 text-xs">{o.order_number}</span>
+                                  <span
+                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold border ${
+                                      isPaid
+                                        ? 'bg-emerald-200 text-emerald-900 border-emerald-400'
+                                        : 'bg-rose-200 text-rose-900 border-rose-400'
+                                    }`}
+                                  >
+                                    {isPaid ? '✅ Paid' : overdue.isOverdue ? `🚨 ${overdue.days}d Unpaid` : '❌ Unpaid'}
+                                  </span>
+                                </div>
+                                <span className="text-xs font-semibold text-slate-600">{formatDate(o.order_date)}</span>
                               </div>
 
                               <div className="flex items-center justify-between">
@@ -677,7 +712,7 @@ export const Orders: React.FC = () => {
                                     const disc = parseSpecialDiscount(o.notes);
                                     if (!disc || disc.amount <= 0) return null;
                                     return (
-                                      <div className="text-[10px] font-bold text-emerald-600 flex items-center justify-end gap-1">
+                                      <div className="text-[10px] font-bold text-emerald-700 flex items-center justify-end gap-1">
                                         <Sparkles className="h-3 w-3 shrink-0" />
                                         <span>Special Disc: -{formatINR(disc.amount)}</span>
                                       </div>
@@ -687,20 +722,20 @@ export const Orders: React.FC = () => {
                               </div>
 
                               {/* Row 3: Payment Status & Mode Controls */}
-                              <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100">
+                              <div className={`flex items-center justify-between gap-2 pt-2.5 border-t ${
+                                isPaid ? 'border-emerald-200' : 'border-rose-200'
+                              }`}>
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <select
                                     value={o.payment_status || 'pending'}
                                     onChange={(e) => updatePayment(o.id, e.target.value as PaymentStatus, o.payment_mode)}
                                     className={`rounded-lg border px-2 py-1 text-xs font-bold focus:outline-none ${
-                                      o.payment_status === 'paid'
-                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                        : overdue.isOverdue
-                                        ? 'border-rose-300 bg-rose-100 text-rose-900 font-extrabold'
-                                        : 'border-amber-200 bg-amber-50 text-amber-700'
+                                      isPaid
+                                        ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                                        : 'border-rose-300 bg-rose-100 text-rose-800'
                                     }`}
                                   >
-                                    <option value="pending">Pending ⏳</option>
+                                    <option value="pending">Unpaid ❌</option>
                                     <option value="paid">Paid ✅</option>
                                   </select>
 
@@ -772,27 +807,54 @@ export const Orders: React.FC = () => {
                       </div>
 
                       {/* Desktop Table (hidden sm:block) */}
-                      <div className="hidden sm:block overflow-x-auto">
-                        <table className="w-full text-left text-xs">
-                          <thead className="bg-slate-100/60 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold">
+                      <div className="hidden sm:block overflow-x-auto p-3">
+                        <table className="w-full text-left text-xs border-separate border-spacing-y-2.5">
+                          <thead className="text-slate-500 uppercase tracking-wider font-semibold">
                             <tr>
-                              <th className="px-4 py-2.5">Order Ref</th>
-                              <th className="px-4 py-2.5">Order Date</th>
-                              <th className="px-4 py-2.5">Total Amount</th>
-                              <th className="px-4 py-2.5">Payment Status</th>
-                              <th className="px-4 py-2.5">Payment Mode</th>
-                              <th className="px-4 py-2.5 text-right">Actions</th>
+                              <th className="px-4 py-2">Order Ref</th>
+                              <th className="px-4 py-2">Order Date</th>
+                              <th className="px-4 py-2">Total Amount</th>
+                              <th className="px-4 py-2">Payment Status</th>
+                              <th className="px-4 py-2">Payment Mode</th>
+                              <th className="px-4 py-2 text-right">Actions</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-100 font-medium">
+                          <tbody className="font-medium">
                             {group.orders.map((o) => {
+                              const isPaid = o.payment_status === 'paid';
                               const overdue = getOverdueInfo(o.order_date, o.payment_status);
                               const isCopied = copiedOrderId === o.id;
                               return (
-                                <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="px-4 py-3 font-bold text-indigo-600">{o.order_number}</td>
-                                  <td className="px-4 py-3 text-slate-500">{formatDate(o.order_date)}</td>
-                                  <td className="px-4 py-3 font-bold text-slate-900">
+                                <tr
+                                  key={o.id}
+                                  className={`transition-all shadow-2xs ${
+                                    isPaid
+                                      ? 'bg-emerald-100/70 hover:bg-emerald-100 text-slate-900'
+                                      : 'bg-rose-100/70 hover:bg-rose-100 text-slate-900'
+                                  }`}
+                                >
+                                  <td className={`px-4 py-3.5 rounded-l-xl border-y border-l ${
+                                    isPaid ? 'border-emerald-300' : 'border-rose-300'
+                                  } font-bold text-indigo-700`}>
+                                    <div className="flex items-center gap-2">
+                                      <span>{o.order_number}</span>
+                                      <span
+                                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-extrabold border ${
+                                          isPaid
+                                            ? 'bg-emerald-200 text-emerald-900 border-emerald-400'
+                                            : 'bg-rose-200 text-rose-900 border-rose-400'
+                                        }`}
+                                      >
+                                        {isPaid ? 'Paid' : 'Unpaid'}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className={`px-4 py-3.5 border-y ${
+                                    isPaid ? 'border-emerald-300' : 'border-rose-300'
+                                  } text-slate-600`}>{formatDate(o.order_date)}</td>
+                                  <td className={`px-4 py-3.5 border-y ${
+                                    isPaid ? 'border-emerald-300' : 'border-rose-300'
+                                  } font-bold text-slate-900`}>
                                     <div>{formatINR(o.total_amount)}</div>
                                     {(() => {
                                       const disc = parseSpecialDiscount(o.notes);
@@ -807,27 +869,29 @@ export const Orders: React.FC = () => {
                                   </td>
 
                                   {/* Interactive Payment Status Selector */}
-                                  <td className="px-4 py-3">
+                                  <td className={`px-4 py-3.5 border-y ${
+                                    isPaid ? 'border-emerald-300' : 'border-rose-300'
+                                  }`}>
                                     <div className="flex items-center gap-1.5">
                                       <select
                                         value={o.payment_status || 'pending'}
                                         onChange={(e) => updatePayment(o.id, e.target.value as PaymentStatus, o.payment_mode)}
                                         className={`rounded-lg border px-2 py-1 text-xs font-bold focus:outline-none ${
-                                          o.payment_status === 'paid'
-                                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                            : overdue.isOverdue
-                                            ? 'border-rose-300 bg-rose-100 text-rose-900 font-extrabold'
-                                            : 'border-amber-200 bg-amber-50 text-amber-700'
+                                          isPaid
+                                            ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                                            : 'border-rose-300 bg-rose-100 text-rose-800'
                                         }`}
                                       >
-                                        <option value="pending">Pending ⏳</option>
+                                        <option value="pending">Unpaid ❌</option>
                                         <option value="paid">Paid ✅</option>
                                       </select>
                                     </div>
                                   </td>
 
                                   {/* Interactive Payment Mode Selector */}
-                                  <td className="px-4 py-3">
+                                  <td className={`px-4 py-3.5 border-y ${
+                                    isPaid ? 'border-emerald-300' : 'border-rose-300'
+                                  }`}>
                                     <select
                                       value={o.payment_mode || 'Cash'}
                                       onChange={(e) => updatePayment(o.id, o.payment_status, e.target.value as PaymentMode)}
@@ -838,7 +902,9 @@ export const Orders: React.FC = () => {
                                     </select>
                                   </td>
 
-                                  <td className="px-4 py-3 text-right">
+                                  <td className={`px-4 py-3.5 rounded-r-xl border-y border-r ${
+                                    isPaid ? 'border-emerald-300' : 'border-rose-300'
+                                  } text-right`}>
                                     <div className="flex items-center justify-end gap-1.5">
                                       <Link
                                         to={`/orders/edit/${o.id}`}
@@ -919,30 +985,42 @@ export const Orders: React.FC = () => {
           ) : (
             <div>
               {/* Mobile Cards View (sm:hidden) */}
-              <div className="divide-y divide-slate-100 sm:hidden">
+              <div className="p-3 space-y-3 sm:hidden">
                 {filteredOrders.map((o) => {
+                  const isPaid = o.payment_status === 'paid';
                   const overdue = getOverdueInfo(o.order_date, o.payment_status);
                   const isCopied = copiedOrderId === o.id;
                   return (
-                    <div key={o.id} className="p-4 space-y-3 bg-white hover:bg-slate-50/50 transition-colors">
+                    <div
+                      key={o.id}
+                      className={`p-4 space-y-3 rounded-xl border-2 transition-all shadow-xs ${
+                        isPaid
+                          ? 'bg-emerald-100/70 hover:bg-emerald-100 border-emerald-300 text-slate-900'
+                          : 'bg-rose-100/70 hover:bg-rose-100 border-rose-300 text-slate-900'
+                      }`}
+                    >
                       {/* Row 1: Order Number + Date */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-indigo-600 text-sm">{o.order_number}</span>
-                          {overdue.isOverdue && (
-                            <span className="rounded-md bg-rose-100 px-1.5 py-0.5 text-[10px] font-extrabold text-rose-800 border border-rose-200">
-                              🚨 {overdue.days}d Overdue
-                            </span>
-                          )}
+                          <span className="font-extrabold text-indigo-700 text-sm">{o.order_number}</span>
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold border ${
+                              isPaid
+                                ? 'bg-emerald-200 text-emerald-900 border-emerald-400'
+                                : 'bg-rose-200 text-rose-900 border-rose-400'
+                            }`}
+                          >
+                            {isPaid ? '✅ Paid' : overdue.isOverdue ? `🚨 ${overdue.days}d Unpaid` : '❌ Unpaid'}
+                          </span>
                         </div>
-                        <span className="text-xs font-medium text-slate-500">{formatDate(o.order_date)}</span>
+                        <span className="text-xs font-semibold text-slate-600">{formatDate(o.order_date)}</span>
                       </div>
 
                       {/* Row 2: Doctor & Clinic */}
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <div className="font-bold text-slate-900 text-sm">{o.doctor?.doctor_name || 'N/A'}</div>
-                          <div className="text-xs text-slate-500">{o.doctor?.clinic_name || 'Clinic'}</div>
+                          <div className="text-xs text-slate-600">{o.doctor?.clinic_name || 'Clinic'}</div>
                         </div>
                         <div className="text-right shrink-0">
                           <div className="text-base font-extrabold text-slate-900">{formatINR(o.total_amount)}</div>
@@ -950,7 +1028,7 @@ export const Orders: React.FC = () => {
                             const disc = parseSpecialDiscount(o.notes);
                             if (!disc || disc.amount <= 0) return null;
                             return (
-                              <div className="text-[10px] font-bold text-emerald-600 flex items-center justify-end gap-1">
+                              <div className="text-[10px] font-bold text-emerald-700 flex items-center justify-end gap-1">
                                 <Sparkles className="h-3 w-3 shrink-0" />
                                 <span>Special Disc: -{formatINR(disc.amount)}</span>
                               </div>
@@ -960,20 +1038,20 @@ export const Orders: React.FC = () => {
                       </div>
 
                       {/* Row 3: Payment Status & Mode Controls */}
-                      <div className="flex items-center justify-between gap-2 pt-2.5 border-t border-slate-100">
+                      <div className={`flex items-center justify-between gap-2 pt-2.5 border-t ${
+                        isPaid ? 'border-emerald-200' : 'border-rose-200'
+                      }`}>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <select
                             value={o.payment_status || 'pending'}
                             onChange={(e) => updatePayment(o.id, e.target.value as PaymentStatus, o.payment_mode)}
                             className={`rounded-lg border px-2 py-1 text-xs font-bold focus:outline-none ${
-                              o.payment_status === 'paid'
-                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                : overdue.isOverdue
-                                ? 'border-rose-300 bg-rose-100 text-rose-900 font-extrabold'
-                                : 'border-amber-200 bg-amber-50 text-amber-700'
+                              isPaid
+                                ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                                : 'border-rose-300 bg-rose-100 text-rose-800'
                             }`}
                           >
-                            <option value="pending">Pending ⏳</option>
+                            <option value="pending">Unpaid ❌</option>
                             <option value="paid">Paid ✅</option>
                           </select>
 
@@ -1045,39 +1123,68 @@ export const Orders: React.FC = () => {
               </div>
 
               {/* Desktop Table View (hidden sm:block) */}
-              <div className="hidden sm:block overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-semibold">
+              <div className="hidden sm:block overflow-x-auto p-3">
+                <table className="w-full text-left text-xs border-separate border-spacing-y-2.5">
+                  <thead className="text-slate-500 uppercase tracking-wider font-semibold">
                     <tr>
-                      <th className="px-4 py-3">Order Ref</th>
-                      <th className="px-4 py-3">Doctor & Clinic</th>
-                      <th className="px-4 py-3">Date</th>
-                      <th className="px-4 py-3">Total Payable</th>
-                      <th className="px-4 py-3">Payment Status</th>
-                      <th className="px-4 py-3">Payment Mode</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
+                      <th className="px-4 py-2">Order Ref</th>
+                      <th className="px-4 py-2">Doctor & Clinic</th>
+                      <th className="px-4 py-2">Date</th>
+                      <th className="px-4 py-2">Total Payable</th>
+                      <th className="px-4 py-2">Payment Status</th>
+                      <th className="px-4 py-2">Payment Mode</th>
+                      <th className="px-4 py-2 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium">
+                  <tbody className="font-medium">
                     {filteredOrders.map((o) => {
+                      const isPaid = o.payment_status === 'paid';
                       const overdue = getOverdueInfo(o.order_date, o.payment_status);
                       const isCopied = copiedOrderId === o.id;
                       return (
-                        <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="px-4 py-3 font-bold text-indigo-600">{o.order_number}</td>
-                          <td className="px-4 py-3">
-                            <div className="font-bold text-slate-900">{o.doctor?.doctor_name || 'N/A'}</div>
-                            <div className="text-[11px] text-slate-400">{o.doctor?.clinic_name || 'Clinic'}</div>
+                        <tr
+                          key={o.id}
+                          className={`transition-all shadow-2xs ${
+                            isPaid
+                              ? 'bg-emerald-100/70 hover:bg-emerald-100 text-slate-900'
+                              : 'bg-rose-100/70 hover:bg-rose-100 text-slate-900'
+                          }`}
+                        >
+                          <td className={`px-4 py-3.5 rounded-l-xl border-y border-l ${
+                            isPaid ? 'border-emerald-300' : 'border-rose-300'
+                          } font-bold text-indigo-700`}>
+                            <div className="flex items-center gap-2">
+                              <span>{o.order_number}</span>
+                              <span
+                                className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-extrabold border ${
+                                  isPaid
+                                    ? 'bg-emerald-200 text-emerald-900 border-emerald-400'
+                                    : 'bg-rose-200 text-rose-900 border-rose-400'
+                                }`}
+                              >
+                                {isPaid ? 'Paid' : 'Unpaid'}
+                              </span>
+                            </div>
                           </td>
-                          <td className="px-4 py-3 text-slate-500">
+                          <td className={`px-4 py-3.5 border-y ${
+                            isPaid ? 'border-emerald-300' : 'border-rose-300'
+                          }`}>
+                            <div className="font-bold text-slate-900">{o.doctor?.doctor_name || 'N/A'}</div>
+                            <div className="text-[11px] text-slate-600">{o.doctor?.clinic_name || 'Clinic'}</div>
+                          </td>
+                          <td className={`px-4 py-3.5 border-y ${
+                            isPaid ? 'border-emerald-300' : 'border-rose-300'
+                          } text-slate-600`}>
                             <div>{formatDate(o.order_date)}</div>
                             {overdue.isOverdue && (
-                              <span className="text-[10px] font-bold text-rose-600 block">
+                              <span className="text-[10px] font-bold text-rose-700 block">
                                 ⚠️ {overdue.days} days pending
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3 font-bold text-slate-900">
+                          <td className={`px-4 py-3.5 border-y ${
+                            isPaid ? 'border-emerald-300' : 'border-rose-300'
+                          } font-bold text-slate-900`}>
                             <div>{formatINR(o.total_amount)}</div>
                             {(() => {
                               const disc = parseSpecialDiscount(o.notes);
@@ -1092,27 +1199,29 @@ export const Orders: React.FC = () => {
                           </td>
 
                           {/* Interactive Payment Status Selector */}
-                          <td className="px-4 py-3">
+                          <td className={`px-4 py-3.5 border-y ${
+                            isPaid ? 'border-emerald-300' : 'border-rose-300'
+                          }`}>
                             <div className="flex items-center gap-1.5">
                               <select
                                 value={o.payment_status || 'pending'}
                                 onChange={(e) => updatePayment(o.id, e.target.value as PaymentStatus, o.payment_mode)}
                                 className={`rounded-lg border px-2 py-1 text-xs font-bold focus:outline-none ${
-                                  o.payment_status === 'paid'
-                                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                                    : overdue.isOverdue
-                                    ? 'border-rose-300 bg-rose-100 text-rose-900 font-extrabold'
-                                    : 'border-amber-200 bg-amber-50 text-amber-700'
+                                  isPaid
+                                    ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                                    : 'border-rose-300 bg-rose-100 text-rose-800'
                                 }`}
                               >
-                                <option value="pending">Pending ⏳</option>
+                                <option value="pending">Unpaid ❌</option>
                                 <option value="paid">Paid ✅</option>
                               </select>
                             </div>
                           </td>
 
                           {/* Interactive Payment Mode Selector */}
-                          <td className="px-4 py-3">
+                          <td className={`px-4 py-3.5 border-y ${
+                            isPaid ? 'border-emerald-300' : 'border-rose-300'
+                          }`}>
                             <select
                               value={o.payment_mode || 'Cash'}
                               onChange={(e) => updatePayment(o.id, o.payment_status, e.target.value as PaymentMode)}
@@ -1123,7 +1232,9 @@ export const Orders: React.FC = () => {
                             </select>
                           </td>
 
-                          <td className="px-4 py-3 text-right">
+                          <td className={`px-4 py-3.5 rounded-r-xl border-y border-r ${
+                            isPaid ? 'border-emerald-300' : 'border-rose-300'
+                          } text-right`}>
                             <div className="flex items-center justify-end gap-1.5">
                               <Link
                                 to={`/orders/edit/${o.id}`}
@@ -1287,12 +1398,12 @@ export const Orders: React.FC = () => {
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
                         viewingOrder.payment_status === 'paid'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-amber-100 text-amber-800'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : 'bg-rose-100 text-rose-800 border border-rose-300'
                       }`}
                     >
                       {viewingOrder.payment_status === 'paid' ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                      {viewingOrder.payment_status.toUpperCase()}
+                      {viewingOrder.payment_status === 'paid' ? 'PAID' : 'UNPAID'}
                     </span>
                     <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700">
                       {viewingOrder.payment_mode}

@@ -204,11 +204,31 @@ export const Dashboard: React.FC = () => {
               {recentOrders.length === 0 ? (
                 <p className="text-xs text-slate-400 py-4 text-center">No recent orders found.</p>
               ) : (
-                recentOrders.map((o) => (
-                  <div key={o.id} className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-xs">
+              recentOrders.map((o) => {
+                const isPaid = o.payment_status === 'paid';
+                return (
+                  <div
+                    key={o.id}
+                    className={`flex items-center justify-between rounded-xl p-3 text-xs border-2 transition-colors ${
+                      isPaid
+                        ? 'bg-emerald-100/70 border-emerald-300 text-slate-900 shadow-2xs'
+                        : 'bg-rose-100/70 border-rose-300 text-slate-900 shadow-2xs'
+                    }`}
+                  >
                     <div>
-                      <div className="font-bold text-slate-900">{o.order_number}</div>
-                      <div className="text-[11px] text-slate-500">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900">{o.order_number}</span>
+                        <span
+                          className={`inline-block rounded-md px-1.5 py-0.2 text-[9px] font-extrabold border ${
+                            isPaid
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : 'bg-rose-100 text-rose-800 border-rose-300'
+                          }`}
+                        >
+                          {isPaid ? 'PAID' : 'UNPAID'}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-0.5">
                         {o.doctor?.doctor_name || 'Doctor N/A'} • {formatDate(o.order_date)}
                       </div>
                     </div>
@@ -216,14 +236,15 @@ export const Dashboard: React.FC = () => {
                       <div className="font-bold text-indigo-600">{formatINR(o.total_amount)}</div>
                       <span
                         className={`inline-block rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
-                          o.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                          isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                         }`}
                       >
-                        {o.payment_status.toUpperCase()} ({o.payment_mode || 'Cash'})
+                        {isPaid ? 'PAID' : 'UNPAID'} ({o.payment_mode || 'Cash'})
                       </span>
                     </div>
                   </div>
-                ))
+                );
+              })
               )}
             </div>
           </div>
