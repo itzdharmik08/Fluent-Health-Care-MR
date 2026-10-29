@@ -1,6 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Medicine, MedicinePriceHistory, ImportedMedicinePreview } from '../types/medicine';
 import { medicineService } from '../services/medicineService';
+import {
+  matchesMedicineCategory,
+  matchesMedicineQuery,
+  calculateMedicineMargin,
+} from '../lib/medicineSearch';
+
+export type SortOption =
+  | 'name_asc'
+  | 'name_desc'
+  | 'rate_asc'
+  | 'rate_desc'
+  | 'margin_desc'
+  | 'recent';
+
+export type PriceFilter = 'all' | 'under100' | '100to300' | 'above300';
 
 export function useMedicines() {
   const [medicines, setMedicines] = useState<Medicine[]>([]);
@@ -8,6 +23,8 @@ export function useMedicines() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<string>('All');
+  const [sortOption, setSortOption] = useState<SortOption>('name_asc');
+  const [priceFilter, setPriceFilter] = useState<PriceFilter>('all');
 
   const fetchMedicines = useCallback(async () => {
     setIsLoading(true);
@@ -48,52 +65,130 @@ export function useMedicines() {
     return count;
   };
 
-  const filteredMedicines = medicines.filter((m) => {
-    // 1. Category Filtering
-    if (activeCategory !== 'All') {
-      const cat = (m.category || '').toUpperCase();
-      const name = (m.medicine_name || '').toUpperCase();
-      const target = activeCategory.toUpperCase();
+  // 1. Calculate how many medicines match search across the entire catalog (cross-category awareness)
+  const globalSearchMatches = useMemo(() => {
+    if (!searchQuery.trim()) return medicines;
+    return medicines.filter((m) => matchesMedicineQuery(m, searchQuery));
+  }, [medicines, searchQuery]);
 
-      if (target.startsWith('HAIRFLU')) {
-        const isMatch = cat.includes('HAIRFLU') || name.includes('HAIRFLU') || (m.composition && m.composition.toUpperCase().includes('HAIR'));
-        if (!isMatch) return false;
-      } else if (target === 'FACE WASH') {
-        if (!cat.includes('FACE WASH') && !name.includes('FACE WASH') && !name.includes('FACEWASH')) return false;
-      } else if (target === 'SOAP/ LOTION') {
-        if (!cat.includes('SOAP') && !cat.includes('LOTION') && !name.includes('SOAP') && !name.includes('LOTION') && !name.includes('SAMPOO')) return false;
-      } else if (target === 'OINTMENT') {
-        if (!cat.includes('OINTMENT') && !name.includes('CREAM') && !name.includes('OINTMENT') && !name.includes('GEL')) return false;
-      } else if (target === 'TAB/CAP') {
-        if (!cat.includes('TAB') && !cat.includes('CAP') && !name.includes('TAB') && !name.includes('CAP') && !name.includes('TABLET')) return false;
-      } else if (target === 'INJECTION') {
-        if (!cat.includes('INJ') && !name.includes('INJ') && !name.includes('VIL')) return false;
-      } else if (target === 'SERUM') {
-        if (!cat.includes('SERUM') && !name.includes('SERUM')) return false;
-      } else if (target === 'GENERAL RANGE') {
-        if (cat.includes('TAB') || cat.includes('CREAM') || cat.includes('SOAP') || cat.includes('INJ') || cat.includes('SERUM') || cat.includes('FACE')) return false;
-      } else if (cat !== target) {
+  // 2. Dynamic Category Counts (based on current search query)
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: globalSearchMatches.length };
+    const categories = [
+      'TAB/CAP',
+      'OINTMENT',
+      'SOAP/ LOTION',
+      'FACE WASH',
+      'INJECTION',
+      'HAIRFLU KIT',
+      'SERUM',
+      'GENERAL RANGE',
+    ];
+
+    categories.forEach((cat) => {
+      counts[cat] = globalSearchMatches.filter((m) => matchesMedicineCategory(m, cat)).length;
+    });
+
+    return counts;
+  }, [globalSearchMatches]);
+
+  // 3. Filtered medicines
+  const filteredMedicines = useMemo(() => {
+    return medicines.filter((m) => {
+      // Category filter
+      if (!matchesMedicineCategory(m, activeCategory)) {
         return false;
       }
+
+      // Query Search filter (multi-keyword tokenized)
+      if (!matchesMedicineQuery(m, searchQuery)) {
+        return false;
+      }
+
+      // Price bracket filter
+      const rate = Number(m.current_rate) || 0;
+      if (priceFilter === 'under100' && rate >= 100) return false;
+      if (priceFilter === '100to300' && (rate < 100 || rate > 300)) return false;
+      if (priceFilter === 'above300' && rate <= 300) return false;
+
+      return true;
+    });
+  }, [medicines, activeCategory, searchQuery, priceFilter]);
+
+  // 4. Sorted medicines
+  const sortedMedicines = useMemo(() => {
+    return [...filteredMedicines].sort((a, b) => {
+      if (sortOption === 'name_asc') {
+        return (a.medicine_name || '').localeCompare(b.medicine_name || '');
+      }
+      if (sortOption === 'name_desc') {
+        return (b.medicine_name || '').localeCompare(a.medicine_name || '');
+      }
+      if (sortOption === 'rate_asc') {
+        return (Number(a.current_rate) || 0) - (Number(b.current_rate) || 0);
+      }
+      if (sortOption === 'rate_desc') {
+        return (Number(b.current_rate) || 0) - (Number(a.current_rate) || 0);
+      }
+      if (sortOption === 'margin_desc') {
+        const marginA = calculateMedicineMargin(a.mrp, a.current_rate).marginPercent;
+        const marginB = calculateMedicineMargin(b.mrp, b.current_rate).marginPercent;
+        return marginB - marginA;
+      }
+      if (sortOption === 'recent') {
+        const dateA = new Date(a.created_at || '').getTime();
+        const dateB = new Date(b.created_at || '').getTime();
+        return dateB - dateA;
+      }
+      return 0;
+    });
+  }, [filteredMedicines, sortOption]);
+
+  // 5. Catalog Analytics Stats for Easy Comprehension
+  const stats = useMemo(() => {
+    const totalCount = medicines.length;
+    if (totalCount === 0) {
+      return {
+        totalCount: 0,
+        avgRate: 0,
+        avgMrp: 0,
+        avgMarginPercent: 0,
+        minRate: 0,
+        maxRate: 0,
+      };
     }
 
-    // 2. Query Search
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      return (
-        (m.medicine_name && m.medicine_name.toLowerCase().includes(q)) ||
-        (m.brand_name && m.brand_name.toLowerCase().includes(q)) ||
-        (m.company_name && m.company_name.toLowerCase().includes(q)) ||
-        (m.generic_name && m.generic_name.toLowerCase().includes(q)) ||
-        (m.composition && m.composition.toLowerCase().includes(q))
-      );
-    }
+    let sumRate = 0;
+    let sumMrp = 0;
+    let sumMarginPercent = 0;
+    let minRate = Infinity;
+    let maxRate = -Infinity;
 
-    return true;
-  });
+    medicines.forEach((m) => {
+      const rate = Number(m.current_rate) || 0;
+      const mrp = Number(m.mrp) || 0;
+      sumRate += rate;
+      sumMrp += mrp;
+
+      const margin = calculateMedicineMargin(mrp, rate);
+      sumMarginPercent += margin.marginPercent;
+
+      if (rate < minRate) minRate = rate;
+      if (rate > maxRate) maxRate = rate;
+    });
+
+    return {
+      totalCount,
+      avgRate: Math.round((sumRate / totalCount) * 100) / 100,
+      avgMrp: Math.round((sumMrp / totalCount) * 100) / 100,
+      avgMarginPercent: Math.round((sumMarginPercent / totalCount) * 10) / 10,
+      minRate: minRate === Infinity ? 0 : minRate,
+      maxRate: maxRate === -Infinity ? 0 : maxRate,
+    };
+  }, [medicines]);
 
   return {
-    medicines: filteredMedicines,
+    medicines: sortedMedicines,
     allMedicines: medicines,
     isLoading,
     error,
@@ -101,6 +196,13 @@ export function useMedicines() {
     setSearchQuery,
     activeCategory,
     setActiveCategory,
+    sortOption,
+    setSortOption,
+    priceFilter,
+    setPriceFilter,
+    categoryCounts,
+    globalSearchMatchesCount: globalSearchMatches.length,
+    stats,
     refetch: fetchMedicines,
     saveMedicine,
     deleteMedicine,
