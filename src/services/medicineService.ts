@@ -1,6 +1,18 @@
 import { supabase } from '../lib/supabase';
 import { Medicine, MedicinePriceHistory, ImportedMedicinePreview } from '../types/medicine';
 import { authService } from './authService';
+import { orderService } from './orderService';
+
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
 
 export const medicineService = {
   /**
@@ -110,6 +122,8 @@ export const medicineService = {
 
     if (medicine.id) {
       payload.id = medicine.id;
+    } else {
+      payload.id = generateUUID();
     }
 
     const { data, error } = await supabase
@@ -121,10 +135,10 @@ export const medicineService = {
     if (error) throw error;
     const saved = data as Medicine;
 
-    // Log price history if rate changed
+    // Log price history and auto-update pending orders if rate changed
     if (
       oldMedicine &&
-      (oldMedicine.current_rate !== saved.current_rate || oldMedicine.mrp !== saved.mrp)
+      (oldMedicine.current_rate !== saved.current_rate || oldMedicine.mrp !== saved.mrp || oldMedicine.gst_percent !== saved.gst_percent)
     ) {
       await this.addPriceHistory({
         medicine_id: saved.id,
@@ -135,9 +149,17 @@ export const medicineService = {
         reason: reason,
         effective_date: new Date().toISOString().split('T')[0],
       });
+
+      // Automatically recalculate and update all pending / unpaid orders containing this medicine
+      try {
+        await (orderService as any)?.syncPendingOrdersForMedicine?.(saved.id, saved.current_rate, saved.gst_percent);
+      } catch (syncErr) {
+        console.warn('Non-blocking error auto-syncing pending orders for updated medicine:', syncErr);
+      }
     }
 
     return saved;
+
   },
 
   /**
@@ -219,6 +241,7 @@ export const medicineService = {
       const existingId = existingIdMap.get(nameKey);
 
       const payload: Record<string, unknown> = {
+        id: existingId || generateUUID(),
         user_id: user.id,
         medicine_name: p.medicine_name.trim(),
         brand_name: p.brand_name || '',
@@ -227,7 +250,7 @@ export const medicineService = {
         category: p.category || 'GENERAL RANGE',
         packing: p.packing || '',
         mrp: parseFloat(String(p.mrp || 0)),
- base_price: parseFloat(String(p.base_price || 0)),
+        base_price: parseFloat(String(p.base_price || 0)),
         current_rate: parseFloat(String(p.current_rate || 0)),
         gst_percent: parseFloat(String(p.gst_percent || 12)),
         company_name: p.company_name || 'Fluent Health Care',
@@ -235,10 +258,6 @@ export const medicineService = {
         status: 'active',
         updated_at: new Date().toISOString(),
       };
-
-      if (existingId) {
-        payload.id = existingId;
-      }
 
       return payload;
     });
@@ -257,6 +276,21 @@ export const medicineService = {
       }
     }
 
+    // Auto-sync all pending / unpaid orders to reflect newly updated medicine prices from the imported file
+    try {
+      const { data: allUserMeds } = await supabase
+        .from('medicines')
+        .select('id, current_rate, gst_percent')
+        .eq('user_id', user.id);
+
+      if (allUserMeds && allUserMeds.length > 0) {
+        await (orderService as any)?.syncPendingOrdersForMedicines?.(allUserMeds);
+      }
+    } catch (syncErr) {
+      console.warn('Non-blocking error auto-syncing pending orders after bulk import:', syncErr);
+    }
+
     return payloads.length;
   },
 };
+
