@@ -4,6 +4,7 @@ import { Navbar } from '../components/layout/Navbar';
 import { Sidebar } from '../components/layout/Sidebar';
 import { BottomNav } from '../components/layout/BottomNav';
 import { GlobalSearchCommandPalette } from '../components/search/GlobalSearchCommandPalette';
+import { AutoBackupToast } from '../components/backup/AutoBackupToast';
 
 export const AppLayout: React.FC = () => {
   return (
@@ -24,6 +25,9 @@ export const AppLayout: React.FC = () => {
 
       {/* Global Command Palette Search Modal */}
       <GlobalSearchCommandPalette />
+
+      {/* 12:00 AM Midnight Auto-Backup Notification Toast & Runner */}
+      <AutoBackupToast />
     </div>
   );
 };

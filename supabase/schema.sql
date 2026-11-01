@@ -260,3 +260,28 @@ SELECT
     NOW()
 FROM auth.users
 ON CONFLICT (id) DO NOTHING;
+
+-- ============================================================================
+-- 8. SYSTEM BACKUPS TABLE (Cloud & Local Sync for 12:00 AM & Manual Backups)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.system_backups (
+    id TEXT PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    type TEXT NOT NULL DEFAULT 'manual',
+    label TEXT NOT NULL,
+    size_bytes BIGINT DEFAULT 0,
+    metadata JSONB NOT NULL,
+    data JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_system_backups_user_id ON public.system_backups(user_id);
+CREATE INDEX IF NOT EXISTS idx_system_backups_created_at ON public.system_backups(created_at DESC);
+
+ALTER TABLE public.system_backups ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their backups" ON public.system_backups FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their backups" ON public.system_backups FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their backups" ON public.system_backups FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete their backups" ON public.system_backups FOR DELETE USING (auth.uid() = user_id);
+

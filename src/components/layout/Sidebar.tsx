@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, UserCheck, Pill, FileText, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, UserCheck, Pill, FileText, Settings, LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 export const Sidebar: React.FC = () => {
@@ -11,6 +11,7 @@ export const Sidebar: React.FC = () => {
     { to: '/doctors', label: 'Doctors', icon: UserCheck },
     { to: '/medicines', label: 'Medicines', icon: Pill },
     { to: '/orders', label: 'Orders', icon: FileText },
+    { to: '/settings?tab=backup', label: 'Backup & Recovery', icon: ShieldCheck },
     { to: '/settings', label: 'Settings', icon: Settings },
   ];
 
