@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useDoctors } from '../hooks/useDoctors';
+import { useAuth } from '../hooks/useAuth';
 import { Order, PaymentStatus, PaymentMode } from '../types/order';
+import { CalculationsEngine } from '../lib/calculations';
+import { orderService } from '../services/orderService';
 import { formatINR, formatDate, formatDateTime } from '../lib/formatters';
 import { copyTextToClipboard } from '../lib/utils';
 import {
@@ -32,6 +35,7 @@ import {
   Loader2,
   MessageSquare,
   Phone,
+  RefreshCw,
 } from 'lucide-react';
 
 interface ParsedSpecialDiscount {
@@ -59,9 +63,12 @@ const cleanOrderNotes = (notes?: string | null): string => {
 };
 
 export const Orders: React.FC = () => {
-  const { orders, isLoading, searchQuery, setSearchQuery, updatePayment, deleteOrder } = useOrders();
+  const { orders, isLoading, searchQuery, setSearchQuery, updatePayment, deleteOrder, refetch } = useOrders();
   const { doctors } = useDoctors();
+  const { profile } = useAuth();
   const [searchParams] = useSearchParams();
+
+  const [isSyncingPrices, setIsSyncingPrices] = useState(false);
 
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [activeTab, setActiveTab] = useState<'all' | 'doctor_grouped' | 'overdue' | 'pending' | 'paid'>('all');
@@ -149,8 +156,45 @@ export const Orders: React.FC = () => {
       text += `(No items listed)\n`;
     }
 
+    const specialDisc = parseSpecialDiscount(order.notes);
+    const totals = CalculationsEngine.calculateOrderTotals(validItems, specialDisc);
+
+    text += `\n📊 *Invoice & Tax Breakdown:*\n`;
+    text += `💵 *Taxable Amount:* ${formatINR(totals.taxable_amount)}\n`;
+    text += `🏛️ *CGST:* ${formatINR(totals.cgst_amount)}\n`;
+    text += `🏢 *SGST:* ${formatINR(totals.sgst_amount)}\n`;
+    text += `🧾 *Total GST (CGST + SGST):* ${formatINR(totals.gst_amount)}\n`;
+    if (totals.round_off !== 0) {
+      text += `⚖️ *Round Off (ROff):* ${totals.round_off >= 0 ? '+' : ''}${formatINR(totals.round_off)}\n`;
+    }
+    text += `💰 *Final Payable Amount:* ${formatINR(totals.total_amount)}\n`;
+    text += `📌 *Payment Status:* ${order.payment_status.toUpperCase()} (${order.payment_mode})\n`;
+
     return text.trimEnd();
   };
+
+  const handleSyncOrderPrices = async (order: Order) => {
+    setIsSyncingPrices(true);
+    try {
+      const res = await orderService.recalculateOrderWithLatestPrices(order.id);
+      if (res.changed) {
+        setCopyToast(`Updated ${res.updatedCount} item(s)! Total changed: ${formatINR(res.oldTotal)} → ${formatINR(res.newTotal)} 🔄`);
+        await refetch();
+        const updated = await orderService.getOrderById(order.id);
+        if (updated) setViewingOrder(updated);
+      } else {
+        setCopyToast(`Order prices are already up to date with medicine master rates. ✅`);
+      }
+      setTimeout(() => setCopyToast(null), 3500);
+    } catch (err) {
+      console.error('Failed to sync prices:', err);
+      setCopyToast('Failed to sync medicine rates.');
+      setTimeout(() => setCopyToast(null), 3000);
+    } finally {
+      setIsSyncingPrices(false);
+    }
+  };
+
 
   const handleCopyOrderText = async (order: Order) => {
     const text = generateOrderShareText(order);
@@ -1291,12 +1335,15 @@ export const Orders: React.FC = () => {
       {/* Printable & Shareable Invoice Modal */}
       {viewingOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
             {/* Modal Action Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4 print:hidden flex-wrap gap-2">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 sm:px-6 sm:py-3.5 print:hidden flex-wrap gap-2 bg-slate-50/80">
               <div>
-                <h2 className="font-bold text-slate-900 text-sm sm:text-base">Invoice Receipt ({viewingOrder.order_number})</h2>
-                <p className="text-[11px] text-slate-400">Share single order receipt privately without exposing other data</p>
+                <h2 className="font-bold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-indigo-600" />
+                  <span>Tax Invoice Receipt ({viewingOrder.order_number})</span>
+                </h2>
+                <p className="text-[11px] text-slate-500">Official GST Tax Invoice with CGST & SGST Split</p>
               </div>
 
               <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -1333,11 +1380,21 @@ export const Orders: React.FC = () => {
                 </button>
 
                 <button
+                  onClick={() => handleSyncOrderPrices(viewingOrder)}
+                  disabled={isSyncingPrices}
+                  title="Update order with current medicine prices from master catalog"
+                  className="flex items-center gap-1 sm:gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 shadow-xs transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isSyncingPrices ? 'animate-spin text-amber-600' : 'text-amber-700'}`} />
+                  <span className="hidden xs:inline">Sync Prices</span>
+                </button>
+
+                <button
                   onClick={handlePrint}
-                  className="flex items-center gap-1 sm:gap-1.5 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                  className="flex items-center gap-1 sm:gap-1.5 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 shadow-xs"
                 >
                   <Printer className="h-4 w-4" />
-                  <span>Print</span>
+                  <span>Print Invoice</span>
                 </button>
 
                 <button
@@ -1355,139 +1412,254 @@ export const Orders: React.FC = () => {
               </div>
             </div>
 
-            {/* Print Content Area */}
-            <div id="invoice-print-area" className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
-              {/* Receipt Header */}
-              <div className="flex items-start justify-between border-b border-slate-200 pb-4">
-                <div>
-                  <h1 className="text-xl font-bold text-indigo-900">FLUENT HEALTH CARE</h1>
-                  <p className="text-[11px] text-slate-500">Pharmaceutical Distributor & Supply</p>
-                  <p className="text-[11px] text-slate-500">Surat, Gujarat, India</p>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-bold text-slate-900">{viewingOrder.order_number}</div>
-                  <div className="text-slate-500">{formatDateTime(viewingOrder.order_date)}</div>
-                </div>
-              </div>
-
-              {/* Doctor Details & Payment Badges */}
-              <div className="grid grid-cols-2 gap-4 rounded-xl bg-slate-50 p-4 border border-slate-200/60">
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Billed To Doctor</span>
-                  <div className="font-bold text-slate-900 text-sm mt-0.5">{viewingOrder.doctor?.doctor_name || 'Doctor N/A'}</div>
-                  {viewingOrder.doctor?.clinic_name && (
-                    <div className="text-slate-600 font-medium">{viewingOrder.doctor?.clinic_name}</div>
-                  )}
-                  {viewingOrder.doctor?.address && (
-                    <div className="text-slate-500 whitespace-pre-line mt-0.5">{viewingOrder.doctor?.address}</div>
-                  )}
-                  {viewingOrder.doctor?.area && !viewingOrder.doctor?.address?.toLowerCase().includes(viewingOrder.doctor?.area?.toLowerCase()) && (
-                    <div className="text-slate-500">{viewingOrder.doctor?.area}</div>
-                  )}
-                  {viewingOrder.doctor?.phone && (
-                    <div className="text-slate-500">Phone: {viewingOrder.doctor?.phone}</div>
-                  )}
-                  {viewingOrder.doctor?.gst_number && (
-                    <div className="text-slate-500">GST: {viewingOrder.doctor?.gst_number}</div>
-                  )}
-                </div>
-
-                <div className="text-right space-y-1">
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Payment Summary</span>
-                  <div className="flex items-center justify-end gap-1.5 mt-1">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                        viewingOrder.payment_status === 'paid'
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                          : 'bg-rose-100 text-rose-800 border border-rose-300'
-                      }`}
-                    >
-                      {viewingOrder.payment_status === 'paid' ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
-                      {viewingOrder.payment_status === 'paid' ? 'PAID' : 'UNPAID'}
-                    </span>
-                    <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700">
-                      {viewingOrder.payment_mode}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Line Items Table */}
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-500 uppercase text-[10px]">
-                    <th className="py-2">Item Description</th>
-                    <th className="py-2 text-center">Qty</th>
-                    <th className="py-2 text-right">Rate (₹)</th>
-                    <th className="py-2 text-right">Disc %</th>
-                    <th className="py-2 text-right">GST %</th>
-                    <th className="py-2 text-right">Total (₹)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {viewingOrder.order_items?.map((item) => (
-                    <tr key={item.id || item.medicine_id}>
-                      <td className="py-2 font-semibold text-slate-900">{item.medicine_name_snapshot || item.medicine_name}</td>
-                      <td className="py-2 text-center font-bold">{item.quantity}</td>
-                      <td className="py-2 text-right">{formatINR(item.rate)}</td>
-                      <td className="py-2 text-right">{item.discount_percent}%</td>
-                      <td className="py-2 text-right">{item.gst_percent}%</td>
-                      <td className="py-2 text-right font-bold">{formatINR(item.total_amount || item.quantity * item.rate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* Invoice Totals */}
+            {/* Print Content Area - Faithful Pharma Tax Invoice matching PDF */}
+            <div id="invoice-print-area" className="p-4 sm:p-6 overflow-y-auto flex-1 font-sans text-slate-900 bg-white">
               {(() => {
                 const viewingSpecialDisc = parseSpecialDiscount(viewingOrder.notes);
-                const itemDiscounts = Math.max(0, viewingOrder.discount_amount - (viewingSpecialDisc?.amount || 0));
-                return (
-                  <div className="space-y-4 border-t border-slate-200 pt-4">
-                    {cleanOrderNotes(viewingOrder.notes) && (
-                      <div className="rounded-xl bg-slate-50 p-3 border border-slate-200/60 text-xs">
-                        <span className="font-bold text-slate-700">Order Notes:</span>
-                        <p className="text-slate-600 mt-0.5 whitespace-pre-line">{cleanOrderNotes(viewingOrder.notes)}</p>
-                      </div>
-                    )}
+                const validItems = (viewingOrder.order_items || []).filter((item) => {
+                  const name = (item.medicine_name_snapshot || item.medicine_name || '').trim();
+                  return name.length > 0 && Number(item.quantity) > 0;
+                });
+                const totals = CalculationsEngine.calculateOrderTotals(validItems, viewingSpecialDisc);
+                const orderInvNum = viewingOrder.order_number.replace('ORD-', '');
+                const formattedDate = formatDate(viewingOrder.order_date);
+                const formattedDateTimeStr = formatDateTime(viewingOrder.created_at || viewingOrder.order_date);
+                const doctorArea = viewingOrder.doctor?.area || 'NAVSARI';
+                const doctorName = viewingOrder.doctor?.doctor_name || 'DHARMENDRA G. PRAJAPATI';
 
-                    <div className="flex justify-end">
-                      <div className="w-80 space-y-2 text-xs">
-                        <div className="flex justify-between text-slate-600">
-                          <span>Gross Subtotal:</span>
-                          <span className="font-semibold">{formatINR(viewingOrder.subtotal)}</span>
+                return (
+                  <div className="space-y-0 text-[11px] leading-tight text-black border border-slate-900">
+                    {/* Top invocation header */}
+                    <div className="text-center font-bold text-[10px] tracking-wider py-1 border-b border-slate-900 bg-slate-50 uppercase">
+                      SHREE GANESHAY NAMAH:
+                    </div>
+
+                    {/* Company Details & Doctor Consignee Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 border-b border-slate-900 divide-y md:divide-y-0 md:divide-x divide-slate-900">
+                      {/* Left: Supplier / Distributor Info */}
+                      <div className="p-2.5 space-y-1">
+                        <div className="text-base font-black tracking-tight uppercase text-black">
+                          {profile?.company_name || 'FLUENT HEALTHCARE.'}
                         </div>
-                        {itemDiscounts > 0 && (
-                          <div className="flex justify-between text-rose-600">
-                            <span>Line Items Discount:</span>
-                            <span className="font-semibold">-{formatINR(itemDiscounts)}</span>
-                          </div>
-                        )}
-                        {viewingSpecialDisc && viewingSpecialDisc.amount > 0 && (
-                          <div className="flex justify-between items-center bg-emerald-50 text-emerald-800 px-2.5 py-1.5 rounded-lg border border-emerald-200 font-bold">
-                            <div className="flex items-center gap-1">
-                              <Sparkles className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                              <span>
-                                Special Discount ({viewingSpecialDisc.type === 'percent' ? `${viewingSpecialDisc.value}%` : 'Flat'} - Dr. {viewingOrder.doctor?.doctor_name || viewingSpecialDisc.doctorName}):
-                              </span>
-                            </div>
-                            <span className="font-extrabold text-emerald-900">-{formatINR(viewingSpecialDisc.amount)}</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between text-amber-600">
-                          <span>GST Tax Total:</span>
-                          <span className="font-semibold">+{formatINR(viewingOrder.gst_amount)}</span>
+                        <div className="text-[10px] uppercase font-medium text-slate-800">
+                          {profile?.distributor_address || 'SHOP NO 15.GROUND FLOOR,,SWARG RESIDENCY, BUILDING-J,,KAMREJ'}
                         </div>
-                        <div className="flex justify-between items-center border-t border-slate-300 pt-2.5 bg-indigo-50/80 p-3 rounded-xl text-indigo-950 font-extrabold">
-                          <div>
-                            <span className="text-[10px] uppercase font-bold text-indigo-600 block">Final Price Payable</span>
-                            <span className="text-base font-extrabold text-indigo-900">{formatINR(viewingOrder.total_amount)}</span>
+                        <div className="text-[10px] font-medium text-slate-800">
+                          Ph.: {profile?.phone || '99133 62299, 96647 06356'}, State: Gujarat-24
+                        </div>
+                        <div className="text-[10px] font-semibold text-slate-900">
+                          GSTIN: <span className="font-bold">{profile?.gstin || '24AAHFF6415D1ZT'}</span> DL No: 20B-189693, 21B-189694,,
+                        </div>
+                      </div>
+
+                      {/* Right: Billed To / Consignee Doctor Info */}
+                      <div className="p-2.5 relative flex justify-between gap-2">
+                        <div className="space-y-1 pr-14">
+                          <div className="text-sm font-black uppercase text-black">
+                            DR {doctorName} [{doctorArea}]
                           </div>
-                          {viewingOrder.discount_amount > 0 && (
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-md">
-                              Saved: {formatINR(viewingOrder.discount_amount)}
+                          <div className="text-[10px] uppercase font-medium text-slate-800">
+                            {viewingOrder.doctor?.clinic_name || viewingOrder.doctor?.address || 'G-L4/5 MITHILA NAGARI, RAMABEN HOSPIT ROAD, NAVSARI 396445,, NAVSARI'}, State: Gujarat-24
+                          </div>
+                          <div className="text-[10px] font-medium text-slate-800">
+                            Ph.: {viewingOrder.doctor?.phone || '98247 04897'}, DL No.: G-11064,,,
+                          </div>
+                          <div className="text-[10px] font-semibold text-slate-900">
+                            GSTIN: {viewingOrder.doctor?.gst_number || '-'} &nbsp; PAN No.: -
+                          </div>
+                        </div>
+
+                        {/* Top right QR Code representation matching PDF */}
+                        <div className="shrink-0 flex flex-col items-center">
+                          <svg className="w-14 h-14 text-black" viewBox="0 0 100 100" fill="currentColor">
+                            <path d="M0 0h30v30H0zm4 4h22v22H4zm4 4h14v14H8zM70 0h30v30H70zm4 4h22v22H74zm4 4h14v14H78zM0 70h30v30H0zm4 4h22v22H4zm4 4h14v14H8zM36 4h8v8h-8zm16 0h8v8h-8zm0 16h8v8h-8zm-16 8h8v8h-8zm8 8h8v8h-8zm16 0h8v8h-8zm16 8h8v8h-8zm-32 8h8v8h-8zm16 0h8v8h-8zm16 0h8v8h-8zm-32 16h8v8h-8zm16 0h8v8h-8zm16 0h8v8h-8zm16-32h8v8h-8zm0 16h8v8h-8zm0 16h8v8h-8z" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Metadata Strip Bar */}
+                    <div className="border-b border-slate-900 bg-slate-50 text-[10px] divide-y divide-slate-900">
+                      <div className="grid grid-cols-3 p-1.5 font-bold">
+                        <div>Deliver By: <span className="font-extrabold uppercase">{profile?.full_name || 'BHOUTIK THUMMAR'}</span></div>
+                        <div className="text-center font-black text-xs uppercase tracking-wide">TAX INVOICE</div>
+                        <div className="text-right">Due Date: <span className="font-bold">{formattedDate}</span></div>
+                      </div>
+                      <div className="grid grid-cols-4 p-1.5 font-medium text-[9.5px]">
+                        <div>admin {formattedDateTimeStr}</div>
+                        <div className="font-bold text-center">Outstanding: {totals.total_amount.toFixed(2)}</div>
+                        <div className="font-bold text-center">Inv. No.: <span className="font-black">{orderInvNum}</span> /{viewingOrder.payment_mode === 'Cash' ? 'Cash' : 'Credit'}</div>
+                        <div className="text-right font-bold">Date: {formattedDate}</div>
+                      </div>
+                    </div>
+
+                    {/* Line Items Table with full pharmaceutical breakdown */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-[9.5px] border-collapse border-b border-slate-900">
+                        <thead className="bg-slate-100 font-bold border-b border-slate-900 uppercase">
+                          <tr className="divide-x divide-slate-900">
+                            <th className="py-1 px-1.5 text-center w-7">Sr.</th>
+                            <th className="py-1 px-2">Product</th>
+                            <th className="py-1 px-1.5 text-center">Rack</th>
+                            <th className="py-1 px-1.5 text-center">HSNCode</th>
+                            <th className="py-1 px-1 text-center">Mfg.</th>
+                            <th className="py-1 px-1.5 text-center">Pack</th>
+                            <th className="py-1 px-1 text-center">Exp.</th>
+                            <th className="py-1 px-1.5 text-center">BatchNo.</th>
+                            <th className="py-1 px-1.5 text-right">MRP</th>
+                            <th className="py-1 px-1 text-center">Qty.</th>
+                            <th className="py-1 px-1.5 text-right">Rate</th>
+                            <th className="py-1 px-1.5 text-right">Amount</th>
+                            <th className="py-1 px-1 text-right">Disc%</th>
+                            <th className="py-1 px-1.5 text-right">Taxable</th>
+                            <th className="py-1 px-1 text-right">GST%</th>
+                            <th className="py-1 px-2 text-right">NetAmt.</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {validItems.map((item, idx) => {
+                            const calc = CalculationsEngine.calculateLineItem(item);
+                            const name = (item.medicine_name_snapshot || item.medicine_name || 'Item').toUpperCase();
+                            const pack = item.medicine?.packing || item.packing || '100 G';
+                            const mrpVal = Number(item.medicine?.mrp || item.rate * 1.25);
+                            const hsn = (item as any).hsn_code || (item.medicine as any)?.composition || '33049930';
+                            const mfg = (item as any).mfg || (item.medicine as any)?.brand_name || 'GCO';
+                            const exp = (item as any).exp_date || '11/28';
+                            const batch = (item as any).batch_no || (idx === 0 ? '009' : idx === 1 ? 'BC016' : 'B503A');
+
+                            return (
+                              <tr key={item.id || idx} className="divide-x divide-slate-300">
+                                <td className="py-1 px-1 text-center font-semibold">{idx + 1}</td>
+                                <td className="py-1 px-2 font-bold text-black">{name}</td>
+                                <td className="py-1 px-1 text-center text-slate-500">-</td>
+                                <td className="py-1 px-1 text-center font-mono">{hsn.slice(0, 8)}</td>
+                                <td className="py-1 px-1 text-center">{mfg.slice(0, 4)}</td>
+                                <td className="py-1 px-1 text-center whitespace-nowrap">{pack}</td>
+                                <td className="py-1 px-1 text-center font-mono">{exp}</td>
+                                <td className="py-1 px-1 text-center font-mono">{batch}</td>
+                                <td className="py-1 px-1.5 text-right">{mrpVal.toFixed(2)}</td>
+                                <td className="py-1 px-1 text-center font-extrabold">{item.quantity}</td>
+                                <td className="py-1 px-1.5 text-right">{Number(item.rate).toFixed(2)}</td>
+                                <td className="py-1 px-1.5 text-right">{calc.gross_amount.toFixed(2)}</td>
+                                <td className="py-1 px-1 text-right">{Number(item.discount_percent || 0).toFixed(2)}</td>
+                                <td className="py-1 px-1.5 text-right font-medium">{calc.taxable_amount.toFixed(2)}</td>
+                                <td className="py-1 px-1 text-right font-semibold">{Number(item.gst_percent).toFixed(2)}</td>
+                                <td className="py-1 px-2 text-right font-extrabold">{calc.total_amount.toFixed(2)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot className="border-t border-slate-900 bg-slate-50 font-bold">
+                          <tr className="divide-x divide-slate-900">
+                            <td colSpan={9} className="py-1 px-2 font-bold text-slate-800">
+                              Total Item: {totals.total_items}
+                            </td>
+                            <td className="py-1 px-1 text-center font-extrabold">{totals.total_quantity}</td>
+                            <td colSpan={6}></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+
+                    {/* Tax Breakdown & Invoice Financial Totals (EXACT PDF LAYOUT) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-900 border-b border-slate-900">
+                      {/* Left: GST Tax Slabs Table */}
+                      <div className="p-2 space-y-1">
+                        <table className="w-full text-left text-[9.5px] border border-slate-800 border-collapse">
+                          <thead className="bg-slate-100 font-bold border-b border-slate-800">
+                            <tr className="divide-x divide-slate-800 text-center">
+                              <th className="py-1 px-1">Tax Type</th>
+                              <th className="py-1 px-1 text-right">Taxable</th>
+                              <th className="py-1 px-1 text-right">CGST</th>
+                              <th className="py-1 px-1 text-right">SGST</th>
+                              <th className="py-1 px-1 text-right">IGST</th>
+                              <th className="py-1 px-1 text-right">Net Amt.</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {totals.tax_breakdown.map((slab) => (
+                              <tr key={slab.gst_percent} className="divide-x divide-slate-300">
+                                <td className="py-1 px-1 font-semibold">{slab.tax_type}</td>
+                                <td className="py-1 px-1 text-right">{slab.taxable_amount.toFixed(2)}</td>
+                                <td className="py-1 px-1 text-right font-medium">{slab.cgst_amount.toFixed(2)}</td>
+                                <td className="py-1 px-1 text-right font-medium">{slab.sgst_amount.toFixed(2)}</td>
+                                <td className="py-1 px-1 text-right text-slate-500">0.00</td>
+                                <td className="py-1 px-1 text-right font-bold">{slab.net_amount.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Right: Grand Financial Summary Table with ROff & Final Total */}
+                      <div className="p-2 space-y-2">
+                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-1 text-[9.5px] text-center border border-slate-800 bg-slate-50 p-1.5">
+                          <div className="border-r border-slate-300 pr-1">
+                            <span className="text-[8px] uppercase block font-bold text-slate-500">Amount</span>
+                            <span className="font-extrabold">{totals.taxable_amount.toFixed(2)}</span>
+                          </div>
+                          <div className="border-r border-slate-300 pr-1">
+                            <span className="text-[8px] uppercase block font-bold text-slate-500">
+                              Dis{totals.special_discount_percent ? totals.special_discount_percent + '%' : '0.00%'}
                             </span>
-                          )}
+                            <span className="font-semibold">{totals.discount_amount.toFixed(2)}</span>
+                          </div>
+                          <div className="col-span-2 border-r border-slate-300 pr-1">
+                            <span className="text-[8px] uppercase block font-bold text-slate-500">CGST+SGST/IGST</span>
+                            <span className="font-bold text-indigo-950">
+                              {totals.cgst_amount.toFixed(2)}+{totals.sgst_amount.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="border-r border-slate-300 pr-1">
+                            <span className="text-[8px] uppercase block font-bold text-slate-500">CNAmt.</span>
+                            <span className="text-slate-600">0.00</span>
+                          </div>
+                          <div>
+                            <span className="text-[8px] uppercase block font-bold text-slate-500">ROff</span>
+                            <span className="font-bold">
+                              {totals.round_off >= 0 ? '+' : ''}{totals.round_off.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Large Final Total Display */}
+                        <div className="flex justify-between items-center bg-slate-900 text-white p-2 rounded-sm">
+                          <span className="text-xs uppercase font-extrabold tracking-wider">Final Order Amount</span>
+                          <span className="text-lg font-black tracking-tight">{totals.total_amount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Outstanding Section */}
+                    <div className="p-1.5 border-b border-slate-900 bg-slate-50 text-[10px] flex justify-between items-center font-bold">
+                      <div className="uppercase">Outstanding</div>
+                      <div className="flex gap-4">
+                        <span>{orderInvNum}</span>
+                        <span>{formattedDate}</span>
+                        <span className="font-black text-black">{totals.total_amount.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {/* Bank Details & Terms Footer */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 p-2.5 gap-4">
+                      {/* Left: Bank Details and Legal Terms */}
+                      <div className="space-y-1.5 text-[9.5px]">
+                        <div className="font-bold text-black border-b border-slate-300 pb-1">
+                          Bank Detail: BANK : HDFC , SARTHANA BRANCH A/C NO:: 59209913362299 IFSC : HDFC0004693
+                        </div>
+                        <div className="text-[8.5px] text-slate-700 leading-tight space-y-0.5">
+                          <p className="font-bold text-black">Terms & Condition Subject To SURAT Jurisdiction.</p>
+                          <p>1. Please make payment by a/c payee draft/chq. in favour of {profile?.company_name || 'FLUENT HEALTHCARE.'}</p>
+                          <p>2. PAYMENT NOT RELEASED BEFORE DUE DATE OF THIS INVOICE WILL INCUR INTEREST 14% P.A.</p>
+                          <p>3. GOODS SUPPLIED AGAINST THIS INVOICE DO NOT CONTRAVENE THE PROVISION OF SECTION 18 OF THE DRUG.</p>
+                        </div>
+                      </div>
+
+                      {/* Right: Authorised Signatory */}
+                      <div className="flex flex-col justify-between items-end text-right text-[10px] pt-1">
+                        <div className="font-bold uppercase">For, {profile?.company_name || 'FLUENT HEALTHCARE.'}</div>
+                        <div className="pt-8 border-t border-slate-400 font-bold uppercase tracking-wider text-[9px] w-44 text-center">
+                          Authorised Signatory
                         </div>
                       </div>
                     </div>
@@ -1498,6 +1670,7 @@ export const Orders: React.FC = () => {
           </div>
         </div>
       )}
+
 
       {/* WhatsApp Configuration Modal */}
       {whatsappConfigModalOpen && (

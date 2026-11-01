@@ -8,6 +8,8 @@ export interface Medicine {
   company_name?: string | null;
   strength?: string | null;
   category?: string | null;
+  sub_category?: string | null;
+  description?: string | null;
   packing?: string | null;
   mrp: number;
   base_price: number;
@@ -40,6 +42,8 @@ export interface ImportedMedicinePreview {
   generic_name: string;
   composition: string;
   category: string;
+  sub_category?: string;
+  description?: string;
   packing: string;
   mrp: number;
   base_price: number;

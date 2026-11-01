@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useMedicines, SortOption, PriceFilter } from '../hooks/useMedicines';
+import { useMedicines, SortOption, PriceFilter, SeviorSubCategory } from '../hooks/useMedicines';
 import { useDoctors } from '../hooks/useDoctors';
 import { MedicineCard } from '../components/medicines/MedicineCard';
 import { MedicineTableView } from '../components/medicines/MedicineTableView';
@@ -40,6 +40,9 @@ export const Medicines: React.FC = () => {
     setSearchQuery,
     activeCategory,
     setActiveCategory,
+    seviorSubCategory,
+    setSeviorSubCategory,
+    seviorSubCounts,
     sortOption,
     setSortOption,
     priceFilter,
@@ -103,6 +106,7 @@ export const Medicines: React.FC = () => {
     'HAIRFLU KIT',
     'SERUM',
     'GENERAL RANGE',
+    'FLUENT SEVIOR',
   ];
 
   const handleOpenAdd = () => {
@@ -355,15 +359,27 @@ export const Medicines: React.FC = () => {
           {categories.map((cat) => {
             const count = categoryCounts[cat] ?? 0;
             const isActive = activeCategory === cat;
-            const label = cat === 'HAIRFLU KIT' ? 'HAIRFLU KIT 🌟' : cat;
+            const label =
+              cat === 'HAIRFLU KIT'
+                ? 'HAIRFLU KIT 🌟'
+                : cat === 'FLUENT SEVIOR'
+                ? '📁 FLUENT SEVIOR'
+                : cat;
 
             return (
               <button
                 key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`whitespace-nowrap flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${
+                onClick={() => {
+                  setActiveCategory(cat);
+                  if (cat !== 'FLUENT SEVIOR') {
+                    setSeviorSubCategory('all');
+                  }
+                }}
+                className={`whitespace-nowrap flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-indigo-600 text-white shadow-xs'
+                    ? cat === 'FLUENT SEVIOR'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'bg-indigo-600 text-white shadow-xs'
                     : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 hover:text-slate-800'
                 }`}
               >
@@ -371,7 +387,9 @@ export const Medicines: React.FC = () => {
                 <span
                   className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
                     isActive
-                      ? 'bg-indigo-500/80 text-white'
+                      ? cat === 'FLUENT SEVIOR'
+                        ? 'bg-emerald-700/90 text-white'
+                        : 'bg-indigo-500/80 text-white'
                       : count > 0
                       ? 'bg-white text-slate-500 border border-slate-200'
                       : 'bg-slate-200/60 text-slate-400'
@@ -383,6 +401,53 @@ export const Medicines: React.FC = () => {
             );
           })}
         </div>
+
+        {/* FLUENT SEVIOR Dedicated Sub-Filter Bar */}
+        {activeCategory === 'FLUENT SEVIOR' && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-2xl bg-emerald-50/90 border border-emerald-200/90 shadow-2xs animate-in fade-in slide-in-from-top-1">
+            <div className="flex items-center gap-1.5 px-1 text-xs font-bold text-emerald-950 shrink-0">
+              <span className="text-base">📁</span>
+              <span className="tracking-wide">FLUENT SEVIOR:</span>
+            </div>
+            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+              {(
+                [
+                  { id: 'all', label: 'All SEVIOR', icon: '📁' },
+                  { id: 'tab_cap', label: 'TAB/CAP', icon: '💊' },
+                  { id: 'syp_powder', label: 'SYP/POWDER', icon: '🧪' },
+                  { id: 'oil_gel', label: 'OIL/GEL', icon: '💧' },
+                  { id: 'injection', label: 'INJECTION', icon: '💉' },
+                ] as const
+              ).map((sub) => {
+                const isSubActive = seviorSubCategory === sub.id;
+                const count = seviorSubCounts[sub.id] ?? 0;
+                return (
+                  <button
+                    key={sub.id}
+                    onClick={() => setSeviorSubCategory(sub.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                      isSubActive
+                        ? 'bg-emerald-600 text-white shadow-xs scale-[1.02]'
+                        : 'bg-white text-emerald-900 border border-emerald-200 hover:bg-emerald-100/70 hover:border-emerald-300'
+                    }`}
+                  >
+                    <span>{sub.icon}</span>
+                    <span>{sub.label}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                        isSubActive
+                          ? 'bg-emerald-700 text-white'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Price Bracket Quick Filters */}
         <div className="flex items-center gap-2 pt-1 text-xs flex-wrap">

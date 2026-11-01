@@ -186,6 +186,14 @@
         "mrp": 79,
         "rate": 15,
         "gst": 5
+      },
+      {
+        "brand_name": "CEFSEV 200 LB TAB",
+        "composition": "CEFIXIME 200 + LACTIC ACID TAB",
+        "pkg": "10TAB",
+        "mrp": 150,
+        "rate": 45,
+        "gst": 5
       }
     ],
     "OINTMENT": [
@@ -267,6 +275,14 @@
         "pkg": "5GM",
         "mrp": 113,
         "rate": 32,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUMA GEL",
+        "composition": "DICLOFENACDIETHYLAMIN+DICLOFEN+LINSEED OIL+MENTHOL+CAPSAICIN",
+        "pkg": "30GM",
+        "mrp": 135,
+        "rate": 22,
         "gst": 5
       }
     ],
@@ -397,6 +413,14 @@
         "pkg": "100GM",
         "mrp": 140,
         "rate": 30,
+        "gst": 5
+      },
+      {
+        "brand_name": "FLUMA PAIN OIL",
+        "composition": "ARTHRITIS PAIN OIL",
+        "pkg": "50ML",
+        "mrp": 140,
+        "rate": 40,
         "gst": 5
       }
     ],
@@ -638,17 +662,12 @@
         "mrp": 105,
         "rate": 18,
         "gst": 5
-      },
-      {
-        "brand_name": "CEFSEV 200 LB TAB",
-        "composition": "CEFIXIME 200 + LACTIC ACID TAB",
-        "pkg": "10TAB",
-        "mrp": 150,
-        "rate": 45,
-        "gst": 5
-      },
+      }
+    ],
+    "FLUENT SEVIOR": [
       {
         "brand_name": "CEFSEV 200 TAB",
+        "sub_category": "TAB/CAP",
         "composition": "CEFIXIME 200 + OFLOXACINE 200 TAB",
         "pkg": "10 TAB",
         "mrp": 240,
@@ -657,6 +676,7 @@
       },
       {
         "brand_name": "FLUDOM CV TAB",
+        "sub_category": "TAB/CAP",
         "composition": "CEFPODOXIME + CLAVULANTE TAB",
         "pkg": "10TAB",
         "mrp": 470,
@@ -665,6 +685,7 @@
       },
       {
         "brand_name": "DEFSEV 6 TAB",
+        "sub_category": "TAB/CAP",
         "composition": "DEFLASACORT 6 MG TAB",
         "pkg": "10 TAB",
         "mrp": 170,
@@ -673,6 +694,7 @@
       },
       {
         "brand_name": "FLUSER D TAB",
+        "sub_category": "TAB/CAP",
         "composition": "DICLOFENAC 50 MG + SERRATIOPEPTIDATE 10MG",
         "pkg": "10TAB",
         "mrp": 60,
@@ -681,6 +703,7 @@
       },
       {
         "brand_name": "FLUBON TAB",
+        "sub_category": "TAB/CAP",
         "composition": "CISSUS QUADRANGULARIS,BOSWELLIA SERRATA, WITHANIA SOMNIFERA & CURCUMIN LONGHA",
         "pkg": "10TAB",
         "mrp": 180,
@@ -689,6 +712,7 @@
       },
       {
         "brand_name": "FLICAL K27 TAB",
+        "sub_category": "TAB/CAP",
         "composition": "CORAL CALCIUM, VITAMIN K27, VIT D3, SYNOCALAMIN,ZINC,MAGNESIUM,CURCUMIN",
         "pkg": "10TAB",
         "mrp": 289,
@@ -697,6 +721,7 @@
       },
       {
         "brand_name": "FLUCEE Z POWDER",
+        "sub_category": "SYP/POWDER",
         "composition": "DEXTROSE+SUCROSS+ZINC +VIT C",
         "pkg": "200GM",
         "mrp": 135,
@@ -705,6 +730,7 @@
       },
       {
         "brand_name": "FLUTEX DX SYP",
+        "sub_category": "SYP/POWDER",
         "composition": "FLUTEX DX SYP",
         "pkg": "100ML",
         "mrp": 128,
@@ -713,6 +739,7 @@
       },
       {
         "brand_name": "FLUZYM SYP",
+        "sub_category": "SYP/POWDER",
         "composition": "DIGESTIVE ENZYMES SYP",
         "pkg": "200ML",
         "mrp": 130,
@@ -721,6 +748,7 @@
       },
       {
         "brand_name": "IROSEV-XT SYP",
+        "sub_category": "SYP/POWDER",
         "composition": "FERROUS ASCORBATE,FOLIC ACID,B-12 SYP",
         "pkg": "200 ML",
         "mrp": 165,
@@ -729,6 +757,7 @@
       },
       {
         "brand_name": "NUTRIENT SYP",
+        "sub_category": "SYP/POWDER",
         "composition": "LYCOPENE,MULTIVITAMINS,MULTIMINERALS & ANTI OXIDANTS SYP",
         "pkg": "200ML",
         "mrp": 180,
@@ -737,6 +766,7 @@
       },
       {
         "brand_name": "FLUMA PAIN OIL",
+        "sub_category": "OIL/GEL",
         "composition": "ARTHRITIS PAIN OIL",
         "pkg": "50ML",
         "mrp": 140,
@@ -745,6 +775,7 @@
       },
       {
         "brand_name": "FLUMA GEL",
+        "sub_category": "OIL/GEL",
         "composition": "DICLOFENACDIETHYLAMIN+DICLOFEN+LINSEED OIL+MENTHOL+CAPSAICIN",
         "pkg": "30GM",
         "mrp": 135,
@@ -753,6 +784,7 @@
       },
       {
         "brand_name": "BECTOSEV 1 GM INJ",
+        "sub_category": "INJECTION",
         "composition": "CEFTRIOXANE 1 GM INJ",
         "pkg": "1VIAL",
         "mrp": 66.64,
@@ -761,6 +793,7 @@
       },
       {
         "brand_name": "BECTOSEV 1.5 GM INJ",
+        "sub_category": "INJECTION",
         "composition": "CEFTRIOXONE 1000 MG+ SULBACTAM 500 MG",
         "pkg": "1VIAL",
         "mrp": 170,
@@ -769,6 +802,7 @@
       },
       {
         "brand_name": "FLUEPAN 40 INJ",
+        "sub_category": "INJECTION",
         "composition": "PANTOPRAZOLE 40 MG",
         "pkg": "1VIAL",
         "mrp": 53.89,
@@ -777,6 +811,7 @@
       },
       {
         "brand_name": "FLUMEC 2500INJ",
+        "sub_category": "INJECTION",
         "composition": "METHYLCOBALAMIN 2500 MCG",
         "pkg": "DISPO P",
         "mrp": 110,

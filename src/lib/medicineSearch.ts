@@ -18,17 +18,25 @@ export function normalizeSearchString(str: string | null | undefined): string {
 export function matchesMedicineCategory(medicine: Medicine, targetCategory: string): boolean {
   if (!targetCategory || targetCategory === 'All') return true;
 
-  const cat = (medicine.category || '').toUpperCase();
-  const name = (medicine.medicine_name || '').toUpperCase();
-  const comp = (medicine.composition || '').toUpperCase();
+  const cat = (medicine.category || '').toUpperCase().trim();
+  const name = (medicine.medicine_name || '').toUpperCase().trim();
   const target = targetCategory.toUpperCase().trim();
 
+  // If the medicine explicitly belongs to HAIRFLU KIT
   if (target.startsWith('HAIRFLU')) {
-    return cat.includes('HAIRFLU') || name.includes('HAIRFLU') || comp.includes('HAIR');
+    return cat.includes('HAIRFLU') || cat.includes('KIT') || name.includes('HAIRFLU');
   }
 
+  // If the target is GENERAL RANGE, match items explicitly categorized as GENERAL RANGE (never specific categories)
+  if (target === 'GENERAL RANGE') {
+    return cat === 'GENERAL RANGE' || !cat;
+  }
+
+  // Exact category match
+  if (cat === target) return true;
+
   if (target === 'FACE WASH' || target === 'FACEWASH') {
-    return cat.includes('FACE WASH') || cat.includes('FACEWASH') || name.includes('FACE WASH') || name.includes('FACEWASH');
+    return cat.includes('FACE WASH') || cat.includes('FACEWASH');
   }
 
   if (target.includes('SOAP') || target.includes('LOTION')) {
@@ -36,66 +44,107 @@ export function matchesMedicineCategory(medicine: Medicine, targetCategory: stri
       cat.includes('SOAP') ||
       cat.includes('LOTION') ||
       cat.includes('SHAMPOO') ||
-      name.includes('SOAP') ||
-      name.includes('LOTION') ||
-      name.includes('SHAMPOO') ||
-      name.includes('SAMPOO')
+      cat.includes('SAMPOO')
     );
   }
 
   if (target === 'OINTMENT' || target === 'CREAM' || target === 'GEL') {
-    return (
-      cat.includes('OINTMENT') ||
-      cat.includes('CREAM') ||
-      cat.includes('GEL') ||
-      name.includes('OINTMENT') ||
-      name.includes('CREAM') ||
-      name.includes('GEL')
-    );
+    return cat.includes('OINTMENT') || cat.includes('CREAM') || cat.includes('GEL');
   }
 
   if (target === 'TAB/CAP' || target === 'TAB' || target === 'CAP' || target === 'TABLET' || target === 'CAPSULE') {
-    return (
-      cat.includes('TAB') ||
-      cat.includes('CAP') ||
-      name.includes('TAB') ||
-      name.includes('CAP') ||
-      name.includes('TABLET') ||
-      name.includes('CAPSULE')
-    );
+    return cat.includes('TAB') || cat.includes('CAP');
   }
 
   if (target === 'INJECTION' || target === 'INJ') {
-    return (
-      cat.includes('INJ') ||
-      cat.includes('VIAL') ||
-      cat.includes('AMPOULE') ||
-      name.includes('INJ') ||
-      name.includes('VIAL') ||
-      name.includes('VIL')
-    );
+    return cat.includes('INJ') || cat.includes('VIAL') || cat.includes('AMPOULE');
   }
 
   if (target === 'SERUM') {
-    return cat.includes('SERUM') || name.includes('SERUM');
+    return cat.includes('SERUM');
   }
 
-  if (target === 'GENERAL RANGE') {
-    const isSpecific =
-      cat.includes('TAB') ||
-      cat.includes('CAP') ||
-      cat.includes('CREAM') ||
-      cat.includes('OINTMENT') ||
-      cat.includes('SOAP') ||
-      cat.includes('LOTION') ||
-      cat.includes('INJ') ||
-      cat.includes('SERUM') ||
-      cat.includes('FACE') ||
-      cat.includes('HAIRFLU');
-    return !isSpecific || cat === 'GENERAL RANGE';
+  if (target.includes('SEVIOR') || target === 'FLUENT SEVIOR') {
+    return (
+      cat.includes('SEVIOR') ||
+      name.includes('SEVIOR') ||
+      name.includes('CEFSEV') ||
+      name.includes('DEFSEV') ||
+      name.includes('BECTOSEV') ||
+      name.includes('IROSEV') ||
+      (medicine.company_name || '').toUpperCase().includes('SEVIOR')
+    );
   }
 
   return cat === target || cat.includes(target);
+}
+
+export type SeviorSubCategory = 'all' | 'tab_cap' | 'syp_powder' | 'oil_gel' | 'injection';
+
+/**
+ * Filter medicines within FLUENT SEVIOR by sub-category:
+ * 💊 TAB/CAP, 🧪 SYP/POWDER, 💧 OIL/GEL, 💉 INJECTION
+ */
+export function matchesSeviorSubCategory(
+  medicine: Medicine,
+  subCategory: SeviorSubCategory
+): boolean {
+  if (!subCategory || subCategory === 'all') return true;
+
+  const desc = ((medicine.description || (medicine as any).sub_category) || '').toUpperCase().trim();
+  const name = (medicine.medicine_name || '').toUpperCase();
+  const pkg = (medicine.packing || '').toUpperCase();
+  const comp = (medicine.composition || '').toUpperCase();
+
+  if (subCategory === 'injection') {
+    if (desc === 'INJECTION' || desc.includes('INJ')) return true;
+    if (desc && !desc.includes('INJ')) return false;
+    return (
+      name.includes('INJ') ||
+      pkg.includes('VIAL') ||
+      pkg.includes('DISPO') ||
+      comp.includes('INJ')
+    );
+  }
+
+  if (subCategory === 'oil_gel') {
+    if (desc === 'OIL/GEL' || desc.includes('OIL') || desc.includes('GEL')) return true;
+    if (desc && !desc.includes('OIL') && !desc.includes('GEL')) return false;
+    return (
+      name.includes('OIL') ||
+      name.includes('GEL') ||
+      comp.includes('OIL') ||
+      comp.includes('GEL')
+    );
+  }
+
+  if (subCategory === 'syp_powder') {
+    if (desc === 'SYP/POWDER' || desc.includes('SYP') || desc.includes('POWDER')) return true;
+    if (desc && !desc.includes('SYP') && !desc.includes('POWDER')) return false;
+    return (
+      name.includes('SYP') ||
+      name.includes('POWDER') ||
+      pkg.includes('SYP') ||
+      pkg.includes('POWDER') ||
+      name.includes('DEW Z') ||
+      name.includes('FLUCEE Z')
+    );
+  }
+
+  if (subCategory === 'tab_cap') {
+    if (desc === 'TAB/CAP' || desc.includes('TAB') || desc.includes('CAP')) return true;
+    if (desc && !desc.includes('TAB') && !desc.includes('CAP')) return false;
+    return (
+      name.includes('TAB') ||
+      name.includes('CAP') ||
+      pkg.includes('TAB') ||
+      pkg.includes('CAP') ||
+      comp.includes('TAB') ||
+      comp.includes('CAP')
+    );
+  }
+
+  return true;
 }
 
 /**
@@ -230,6 +279,15 @@ export function getCategoryBadgeStyle(category: string | null | undefined): {
       text: 'text-violet-700',
       border: 'border-violet-200',
       label: 'SERUM',
+    };
+  }
+
+  if (cat.includes('SEVIOR')) {
+    return {
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-700',
+      border: 'border-emerald-200',
+      label: 'FLUENT SEVIOR',
     };
   }
 

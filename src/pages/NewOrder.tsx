@@ -8,6 +8,7 @@ import { OrderItem, PaymentStatus, PaymentMode, SpecialDiscountConfig } from '..
 import { CalculationsEngine } from '../lib/calculations';
 import { formatINR } from '../lib/formatters';
 import { ArrowLeft, Plus, Trash2, FileText, CheckCircle, AlertCircle, Filter, Pill, Search, Tag, Sparkles, Percent, Check, X, Save, Edit3, Loader2 } from 'lucide-react';
+import { matchesMedicineCategory, matchesMedicineQuery } from '../lib/medicineSearch';
 
 export const NewOrder: React.FC = () => {
   const { orderId } = useParams<{ orderId?: string }>();
@@ -76,45 +77,20 @@ export const NewOrder: React.FC = () => {
     setSelectedMedicineId('');
   };
 
+  // Global search matches across all categories to prevent getting stuck
+  const globalOrderSearchMatches = searchFilter.trim()
+    ? medicines.filter((m) => matchesMedicineQuery(m, searchFilter))
+    : medicines;
+
   const filteredMedicines = medicines.filter((m) => {
     // 1. Category Filter
-    if (selectedCategory !== 'All') {
-      const cat = (m.category || '').toUpperCase();
-      const name = (m.medicine_name || '').toUpperCase();
-      const target = selectedCategory.toUpperCase();
-
-      if (target.startsWith('HAIRFLU')) {
-        const isMatch =
-          cat.includes('HAIRFLU') ||
-          name.includes('HAIRFLU') ||
-          (m.composition && m.composition.toUpperCase().includes('HAIR'));
-        if (!isMatch) return false;
-      } else if (target === 'FACE WASH') {
-        if (!cat.includes('FACE WASH') && !name.includes('FACE WASH') && !name.includes('FACEWASH')) return false;
-      } else if (target === 'SOAP/ LOTION' || target === 'SOAP' || target === 'LOTION') {
-        if (!cat.includes('SOAP') && !cat.includes('LOTION') && !name.includes('SOAP') && !name.includes('LOTION') && !name.includes('SAMPOO') && !name.includes('SHAMPOO')) return false;
-      } else if (target === 'OINTMENT') {
-        if (!cat.includes('OINTMENT') && !name.includes('CREAM') && !name.includes('OINTMENT') && !name.includes('GEL')) return false;
-      } else if (target === 'TAB/CAP' || target === 'TAB' || target === 'CAP') {
-        if (!cat.includes('TAB') && !cat.includes('CAP') && !name.includes('TAB') && !name.includes('CAP') && !name.includes('TABLET') && !name.includes('CAPSULE')) return false;
-      } else if (target === 'INJECTION') {
-        if (!cat.includes('INJ') && !name.includes('INJ') && !name.includes('VIL')) return false;
-      } else if (target === 'SERUM') {
-        if (!cat.includes('SERUM') && !name.includes('SERUM')) return false;
-      } else if (target === 'GENERAL RANGE') {
-        if (cat.includes('TAB') || cat.includes('CREAM') || cat.includes('SOAP') || cat.includes('INJ') || cat.includes('SERUM') || cat.includes('FACE') || cat.includes('HAIRFLU')) return false;
-      } else if (cat !== target) {
-        return false;
-      }
+    if (!matchesMedicineCategory(m, selectedCategory)) {
+      return false;
     }
 
-    // 2. Text Search Filter
-    if (searchFilter.trim()) {
-      const q = searchFilter.toLowerCase().trim();
-      const matchName = m.medicine_name && m.medicine_name.toLowerCase().includes(q);
-      const matchBrand = m.brand_name && m.brand_name.toLowerCase().includes(q);
-      const matchComp = m.composition && m.composition.toLowerCase().includes(q);
-      if (!matchName && !matchBrand && !matchComp) return false;
+    // 2. Multi-Keyword Tokenized Search Filter
+    if (!matchesMedicineQuery(m, searchFilter)) {
+      return false;
     }
 
     return true;
@@ -502,22 +478,58 @@ export const NewOrder: React.FC = () => {
 
             {/* Quick Text Search */}
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Search className="h-3.5 w-3.5 text-indigo-600" />
-                <span>Search Medicine Name</span>
+              <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Search className="h-3.5 w-3.5 text-indigo-600" />
+                  <span>Search Medicine Name</span>
+                </span>
+                {searchFilter && (
+                  <span className="text-[10px] text-indigo-600 font-semibold">
+                    {filteredMedicines.length} found
+                  </span>
+                )}
               </label>
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Type to filter..."
+                  placeholder="Type formula, packing, brand..."
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 pl-8 pr-3 py-2 text-xs sm:text-sm focus:border-indigo-500 focus:outline-none bg-white"
+                  className="w-full rounded-xl border border-slate-200 pl-8 pr-8 py-2 text-xs sm:text-sm focus:border-indigo-500 focus:outline-none bg-white"
                 />
+                {searchFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchFilter('')}
+                    className="absolute right-2.5 top-2.5 rounded-md p-0.5 text-slate-400 hover:text-slate-600"
+                    title="Clear filter"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
+
+          {/* Cross-Category Search Match Helper */}
+          {searchFilter.trim() && filteredMedicines.length === 0 && globalOrderSearchMatches.length > 0 && (
+            <div className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 border border-amber-200">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>
+                  No matches in <strong>{selectedCategory}</strong>, but <strong>{globalOrderSearchMatches.length} items</strong> found in other categories!
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('All')}
+                className="rounded-md bg-amber-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-amber-700 shrink-0 transition-colors"
+              >
+                Switch to All
+              </button>
+            </div>
+          )}
 
           {/* 2. Select Medicine Dropdown & Add Button */}
           <div className="space-y-1 pt-1">
@@ -905,13 +917,61 @@ export const NewOrder: React.FC = () => {
                   <span className="font-extrabold text-emerald-900">-{formatINR(totals.special_discount_amount)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-slate-600">
-                <span>Taxable Total:</span>
+              <div className="flex justify-between text-slate-700 font-medium">
+                <span>Taxable Amount (Total):</span>
                 <span className="font-semibold">{formatINR(totals.taxable_amount)}</span>
               </div>
-              <div className="flex justify-between text-amber-600">
-                <span>GST Tax Total:</span>
-                <span className="font-semibold">+{formatINR(totals.gst_amount)}</span>
+
+              {/* CGST & SGST Split Breakdown */}
+              <div className="rounded-lg bg-amber-50/60 p-2.5 border border-amber-200/60 space-y-1.5">
+                <div className="flex justify-between text-amber-900 font-semibold text-[11px]">
+                  <span>CGST (Central Tax):</span>
+                  <span>+{formatINR(totals.cgst_amount)}</span>
+                </div>
+                <div className="flex justify-between text-amber-900 font-semibold text-[11px]">
+                  <span>SGST (State Tax):</span>
+                  <span>+{formatINR(totals.sgst_amount)}</span>
+                </div>
+                <div className="flex justify-between text-amber-700 font-bold border-t border-amber-200/60 pt-1 text-xs">
+                  <span>Total GST (CGST + SGST):</span>
+                  <span>+{formatINR(totals.gst_amount)}</span>
+                </div>
+              </div>
+
+              {/* GST Slab Breakdown Table (Like PDF Invoice) */}
+              {totals.tax_breakdown.length > 0 && (
+                <div className="rounded-lg border border-slate-200 overflow-hidden text-[10px]">
+                  <table className="w-full text-left bg-white">
+                    <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="px-2 py-1">Tax Type</th>
+                        <th className="px-2 py-1 text-right">Taxable</th>
+                        <th className="px-2 py-1 text-right">CGST</th>
+                        <th className="px-2 py-1 text-right">SGST</th>
+                        <th className="px-2 py-1 text-right">Net Amt</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {totals.tax_breakdown.map((slab) => (
+                        <tr key={slab.gst_percent}>
+                          <td className="px-2 py-1 font-semibold text-slate-800">{slab.tax_type}</td>
+                          <td className="px-2 py-1 text-right text-slate-600">{formatINR(slab.taxable_amount)}</td>
+                          <td className="px-2 py-1 text-right text-amber-700 font-medium">{formatINR(slab.cgst_amount)}</td>
+                          <td className="px-2 py-1 text-right text-amber-700 font-medium">{formatINR(slab.sgst_amount)}</td>
+                          <td className="px-2 py-1 text-right font-bold text-slate-900">{formatINR(slab.net_amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Round Off (ROff) */}
+              <div className="flex justify-between text-slate-500 text-[11px]">
+                <span>Round Off (ROff):</span>
+                <span className="font-semibold">
+                  {totals.round_off >= 0 ? `+${formatINR(totals.round_off)}` : `-${formatINR(Math.abs(totals.round_off))}`}
+                </span>
               </div>
 
               <div className="border-t border-slate-200 pt-3">
@@ -931,7 +991,7 @@ export const NewOrder: React.FC = () => {
                         Dr. {selectedDoctor.doctor_name}
                       </div>
                     )}
-                    <span className="text-[10px] text-slate-500">All Taxes Included</span>
+                    <span className="text-[10px] text-slate-500">CGST + SGST Included</span>
                   </div>
                 </div>
               </div>

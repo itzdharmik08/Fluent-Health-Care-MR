@@ -3,6 +3,9 @@ import { ImportedMedicinePreview } from '../types/medicine';
 export function detectCategory(name: string = '', comp: string = '', context: string = ''): string {
   const upper = (name + ' ' + comp + ' ' + context).toUpperCase();
 
+  if (upper.includes('SEVIOR') || context.toUpperCase().includes('SEVIOR')) {
+    return 'FLUENT SEVIOR';
+  }
   if (upper.includes('HAIRFLU') || (upper.includes('KIT') && upper.includes('HAIR'))) {
     return 'HAIRFLU KIT (HAIR HEALTH & GROWTH FORMULA...)';
   }
@@ -27,6 +30,14 @@ export function detectCategory(name: string = '', comp: string = '', context: st
   return 'GENERAL RANGE';
 }
 
+export function detectSeviorSubCategory(name = '', pkg = '', comp = '', context = ''): string {
+  const upper = (name + ' ' + pkg + ' ' + comp + ' ' + context).toUpperCase();
+  if (upper.includes('INJ') || upper.includes('VIAL') || upper.includes('DISPO')) return 'INJECTION';
+  if (upper.includes('OIL') || upper.includes('GEL')) return 'OIL/GEL';
+  if (upper.includes('SYP') || upper.includes('POWDER')) return 'SYP/POWDER';
+  return 'TAB/CAP';
+}
+
 export function extractMedicinesFromJSON(rawData: unknown): ImportedMedicinePreview[] {
   const results: ImportedMedicinePreview[] = [];
 
@@ -44,15 +55,23 @@ export function extractMedicinesFromJSON(rawData: unknown): ImportedMedicinePrev
     
     const category = String(item.category || detectCategory(name, comp, categoryContext));
 
+    const base = parseFloat(String(item.base_price || item['BASE PRICE'] || item['Base Price'] || item.purchase_price || 0)) || Math.round(rate * 0.8);
+    const generic = String(item.generic_name || item['GENERIC NAME'] || comp).trim();
+
+    const explicitSubCat = String(item.sub_category || item.subCategory || item['SUB_CATEGORY'] || item['Sub Category'] || item.description || '').trim();
+    const finalSubCat = explicitSubCat || (category.toUpperCase().includes('SEVIOR') ? detectSeviorSubCategory(name, pkg, comp, categoryContext) : '');
+
     results.push({
       medicine_name: name.trim(),
       brand_name: name.trim(),
-      generic_name: comp.trim(),
+      generic_name: generic,
       composition: comp.trim(),
       category: category,
+      sub_category: finalSubCat || undefined,
+      description: finalSubCat || '',
       packing: pkg.trim(),
       mrp: mrp,
-      base_price: Math.round(rate * 0.8),
+      base_price: base,
       current_rate: rate,
       gst_percent: gst,
       company_name: String(item.company_name || item['COMPANY NAME'] || 'Fluent Health Care'),

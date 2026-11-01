@@ -109,6 +109,7 @@ export const medicineService = {
       generic_name: medicine.generic_name || '',
       composition: medicine.composition || '',
       category: medicine.category || 'GENERAL RANGE',
+      description: medicine.description || (medicine as any).sub_category || '',
       packing: medicine.packing || '',
       mrp: parseFloat(String(medicine.mrp || 0)),
       base_price: parseFloat(String(medicine.base_price || 0)),
@@ -200,9 +201,10 @@ export const medicineService = {
   },
 
   /**
-   * Bulk import preview items into Supabase cleanly with batching and deduplication
+   * Bulk import preview items into Supabase cleanly with batching and deduplication.
+   * If clearExisting is true (default), clears past medicines for the user before importing fresh JSON data.
    */
-  async bulkImportMedicines(previews: ImportedMedicinePreview[]): Promise<number> {
+  async bulkImportMedicines(previews: ImportedMedicinePreview[], clearExisting = true): Promise<number> {
     await authService.ensureUserProfile();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User authentication required for bulk import.');
@@ -220,22 +222,37 @@ export const medicineService = {
     }
     const uniquePreviews = Array.from(uniqueMap.values());
 
-    // Fetch existing user medicines to match IDs for updating existing catalog items
-    const { data: existingMedicines } = await supabase
-      .from('medicines')
-      .select('id, medicine_name')
-      .eq('user_id', user.id);
+    // 1. If clearExisting is true, wipe all previous medicines for this user first
+    if (clearExisting) {
+      const { error: deleteError } = await supabase
+        .from('medicines')
+        .delete()
+        .eq('user_id', user.id);
 
-    const existingIdMap = new Map<string, string>();
-    if (existingMedicines && Array.isArray(existingMedicines)) {
-      existingMedicines.forEach((m) => {
-        if (m.medicine_name) {
-          existingIdMap.set(m.medicine_name.trim().toLowerCase(), m.id);
-        }
-      });
+      if (deleteError) {
+        console.error('Failed to clear previous medicines:', deleteError);
+        throw new Error(`Failed to clear previous medicines: ${deleteError.message}`);
+      }
     }
 
-    // Build clean payloads matching exact Supabase database column schema
+    // 2. Fetch existing user medicines (in case clearExisting is false)
+    const existingIdMap = new Map<string, string>();
+    if (!clearExisting) {
+      const { data: existingMedicines } = await supabase
+        .from('medicines')
+        .select('id, medicine_name')
+        .eq('user_id', user.id);
+
+      if (existingMedicines && Array.isArray(existingMedicines)) {
+        existingMedicines.forEach((m) => {
+          if (m.medicine_name) {
+            existingIdMap.set(m.medicine_name.trim().toLowerCase(), m.id);
+          }
+        });
+      }
+    }
+
+    // 3. Build clean payloads matching exact Supabase database column schema
     const payloads = uniquePreviews.map((p) => {
       const nameKey = (p.medicine_name || '').trim().toLowerCase();
       const existingId = existingIdMap.get(nameKey);
@@ -248,6 +265,7 @@ export const medicineService = {
         generic_name: p.generic_name || '',
         composition: p.composition || '',
         category: p.category || 'GENERAL RANGE',
+        description: p.description || p.sub_category || '',
         packing: p.packing || '',
         mrp: parseFloat(String(p.mrp || 0)),
         base_price: parseFloat(String(p.base_price || 0)),

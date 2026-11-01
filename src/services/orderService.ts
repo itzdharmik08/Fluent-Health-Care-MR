@@ -266,4 +266,257 @@ export const orderService = {
 
     if (error) throw error;
   },
+
+  /**
+   * Auto-sync pending/unpaid orders when a single medicine price changes in the Medicines tab
+   */
+  async syncPendingOrdersForMedicine(medicineId: string, newRate: number, newGstPercent?: number): Promise<number> {
+    try {
+      const { data: pendingOrders, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          doctor:doctors (*),
+          order_items (*)
+        `)
+        .eq('payment_status', 'pending');
+
+      if (error || !pendingOrders || pendingOrders.length === 0) return 0;
+
+      let affectedCount = 0;
+
+      for (const order of pendingOrders) {
+        const items = order.order_items || [];
+        const hasMedicine = items.some((it: any) => it.medicine_id === medicineId);
+        if (!hasMedicine) continue;
+
+        const updatedItems = items.map((it: any) => {
+          if (it.medicine_id === medicineId) {
+            return {
+              ...it,
+              rate: newRate,
+              gst_percent: newGstPercent !== undefined ? newGstPercent : it.gst_percent,
+            };
+          }
+          return it;
+        });
+
+        const specialDisc = parseSpecialDiscount(order.notes);
+        const totals = CalculationsEngine.calculateOrderTotals(updatedItems, specialDisc);
+
+        await supabase
+          .from('orders')
+          .update({
+            subtotal: totals.gross_subtotal,
+            discount_amount: totals.discount_amount,
+            gst_amount: totals.gst_amount,
+            total_amount: totals.total_amount,
+          })
+          .eq('id', order.id);
+
+        for (const it of updatedItems) {
+          if (it.medicine_id === medicineId && it.id) {
+            const calc = CalculationsEngine.calculateLineItem(it);
+            await supabase
+              .from('order_items')
+              .update({
+                rate: newRate,
+                gst_percent: it.gst_percent,
+                discount_amount: calc.discount_amount,
+                gst_amount: calc.gst_amount,
+                subtotal: calc.gross_amount,
+                total_amount: calc.total_amount,
+              })
+              .eq('id', it.id);
+          }
+        }
+
+        affectedCount++;
+      }
+
+      return affectedCount;
+    } catch (err) {
+      console.error('Error auto-syncing pending orders for medicine:', err);
+      return 0;
+    }
+  },
+
+  /**
+   * Auto-sync pending/unpaid orders when multiple medicine prices change (e.g. bulk file import)
+   */
+  async syncPendingOrdersForMedicines(updates: Array<{ id: string; current_rate: number; gst_percent?: number }>): Promise<number> {
+    if (!updates || updates.length === 0) return 0;
+
+    const rateMap = new Map<string, { rate: number; gst?: number }>();
+    updates.forEach((u) => {
+      rateMap.set(u.id, { rate: u.current_rate, gst: u.gst_percent });
+    });
+
+    try {
+      const { data: pendingOrders, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          doctor:doctors (*),
+          order_items (*)
+        `)
+        .eq('payment_status', 'pending');
+
+      if (error || !pendingOrders || pendingOrders.length === 0) return 0;
+
+      let affectedCount = 0;
+
+      for (const order of pendingOrders) {
+        const items = order.order_items || [];
+        let orderChanged = false;
+
+        const updatedItems = items.map((it: any) => {
+          const update = rateMap.get(it.medicine_id);
+          if (update && (update.rate !== it.rate || (update.gst !== undefined && update.gst !== it.gst_percent))) {
+            orderChanged = true;
+            return {
+              ...it,
+              rate: update.rate,
+              gst_percent: update.gst !== undefined ? update.gst : it.gst_percent,
+            };
+          }
+          return it;
+        });
+
+        if (!orderChanged) continue;
+
+        const specialDisc = parseSpecialDiscount(order.notes);
+        const totals = CalculationsEngine.calculateOrderTotals(updatedItems, specialDisc);
+
+        await supabase
+          .from('orders')
+          .update({
+            subtotal: totals.gross_subtotal,
+            discount_amount: totals.discount_amount,
+            gst_amount: totals.gst_amount,
+            total_amount: totals.total_amount,
+          })
+          .eq('id', order.id);
+
+        for (const it of updatedItems) {
+          const update = rateMap.get(it.medicine_id);
+          if (update && it.id) {
+            const calc = CalculationsEngine.calculateLineItem(it);
+            await supabase
+              .from('order_items')
+              .update({
+                rate: it.rate,
+                gst_percent: it.gst_percent,
+                discount_amount: calc.discount_amount,
+                gst_amount: calc.gst_amount,
+                subtotal: calc.gross_amount,
+                total_amount: calc.total_amount,
+              })
+              .eq('id', it.id);
+          }
+        }
+
+        affectedCount++;
+      }
+
+      return affectedCount;
+    } catch (err) {
+      console.error('Error auto-syncing pending orders for medicines list:', err);
+      return 0;
+    }
+  },
+
+  /**
+   * Recalculate a specific order with latest master medicine prices on-demand
+   */
+  async recalculateOrderWithLatestPrices(orderId: string): Promise<{
+    changed: boolean;
+    oldTotal: number;
+    newTotal: number;
+    updatedCount: number;
+  }> {
+    const order = await this.getOrderById(orderId);
+    if (!order || !order.order_items || order.order_items.length === 0) {
+      return { changed: false, oldTotal: 0, newTotal: 0, updatedCount: 0 };
+    }
+
+    const medicineIds = order.order_items.map((it) => it.medicine_id).filter(Boolean);
+    const { data: latestMeds } = await supabase
+      .from('medicines')
+      .select('id, current_rate, gst_percent')
+      .in('id', medicineIds);
+
+    const priceMap = new Map<string, { rate: number; gst_percent: number }>();
+    (latestMeds || []).forEach((m) => {
+      priceMap.set(m.id, { rate: m.current_rate, gst_percent: m.gst_percent });
+    });
+
+    let updatedCount = 0;
+    const updatedItems = order.order_items.map((it) => {
+      const latest = priceMap.get(it.medicine_id);
+      if (latest && (latest.rate !== it.rate || latest.gst_percent !== it.gst_percent)) {
+        updatedCount++;
+        return {
+          ...it,
+          rate: latest.rate,
+          gst_percent: latest.gst_percent,
+        };
+      }
+      return it;
+    });
+
+    if (updatedCount === 0) {
+      return { changed: false, oldTotal: order.total_amount, newTotal: order.total_amount, updatedCount: 0 };
+    }
+
+    const specialDisc = parseSpecialDiscount(order.notes);
+    const totals = CalculationsEngine.calculateOrderTotals(updatedItems, specialDisc);
+
+    await supabase
+      .from('orders')
+      .update({
+        subtotal: totals.gross_subtotal,
+        discount_amount: totals.discount_amount,
+        gst_amount: totals.gst_amount,
+        total_amount: totals.total_amount,
+      })
+      .eq('id', orderId);
+
+    for (const it of updatedItems) {
+      if (it.id) {
+        const calc = CalculationsEngine.calculateLineItem(it);
+        await supabase
+          .from('order_items')
+          .update({
+            rate: it.rate,
+            gst_percent: it.gst_percent,
+            discount_amount: calc.discount_amount,
+            gst_amount: calc.gst_amount,
+            subtotal: calc.gross_amount,
+            total_amount: calc.total_amount,
+          })
+          .eq('id', it.id);
+      }
+    }
+
+    return {
+      changed: true,
+      oldTotal: order.total_amount,
+      newTotal: totals.total_amount,
+      updatedCount,
+    };
+  },
 };
+
+const parseSpecialDiscount = (notes?: string | null): SpecialDiscountConfig | null => {
+  if (!notes) return null;
+  const match = notes.match(/\[SPECIAL_DISCOUNT:amount=([0-9.]+);type=(percent|fixed);value=([0-9.]+);doctor=([^\]]*)\]/);
+  if (!match) return null;
+  return {
+    amount: parseFloat(match[1]) || 0,
+    type: match[2] as 'percent' | 'fixed',
+    value: parseFloat(match[3]) || 0,
+    doctor_name: decodeURIComponent(match[4] || ''),
+  };
+};
+

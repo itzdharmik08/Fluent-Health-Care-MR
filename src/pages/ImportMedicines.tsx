@@ -12,6 +12,7 @@ export const ImportMedicines: React.FC = () => {
 
   const [previews, setPreviews] = useState<ImportedMedicinePreview[]>([]);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [clearPastData, setClearPastData] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -109,8 +110,12 @@ export const ImportMedicines: React.FC = () => {
     setIsProcessing(true);
     setErrorMsg(null);
     try {
-      const count = await bulkImport(selected);
-      setSuccessMsg(`Successfully imported ${count} medicine products into your catalog!`);
+      const count = await bulkImport(selected, clearPastData);
+      setSuccessMsg(
+        clearPastData
+          ? `Cleared past medicines and imported ${count} fresh products from your JSON file!`
+          : `Successfully imported ${count} medicine products into your catalog!`
+      );
       setTimeout(() => navigate('/medicines'), 1500);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Bulk import failed';
@@ -159,6 +164,29 @@ export const ImportMedicines: React.FC = () => {
       {/* Preview Table */}
       {previews.length > 0 && (
         <div className="space-y-4">
+          {/* Catalog Sync Option: Clear past data & set fresh JSON */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-amber-50/80 border border-amber-200 p-4 rounded-2xl">
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={clearPastData}
+                onChange={(e) => setClearPastData(e.target.checked)}
+                className="h-4 w-4 rounded border-amber-300 text-indigo-600 focus:ring-indigo-500 mt-0.5 cursor-pointer"
+              />
+              <div>
+                <span className="text-xs font-bold text-amber-950 block">
+                  Clear past medicines & set catalog fresh according to JSON file
+                </span>
+                <span className="text-[11px] text-amber-800 font-medium">
+                  Deletes all previous medicines in your database first, then inserts only the selected items from this file.
+                </span>
+              </div>
+            </label>
+            <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-amber-200/80 text-amber-900 shrink-0 self-end sm:self-center">
+              {clearPastData ? 'Mode: Fresh Catalog Replace' : 'Mode: Merge / Upsert'}
+            </span>
+          </div>
+
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-slate-900 text-base">
               Parsed Medicine Records ({previews.filter((p) => p.isSelected).length} of {previews.length} selected)

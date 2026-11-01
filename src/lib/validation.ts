@@ -27,6 +27,9 @@ export const doctorSchema = z.object({
 export const medicineSchema = z.object({
   medicine_name: z.string().min(1, 'Medicine name is required'),
   brand_name: z.string().optional().nullable(),
+  category: z.string().optional().nullable(),
+  sub_category: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
   generic_name: z.string().optional().nullable(),
   composition: z.string().optional().nullable(),
   company_name: z.string().optional().nullable(),

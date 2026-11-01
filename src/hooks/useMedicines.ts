@@ -5,6 +5,8 @@ import {
   matchesMedicineCategory,
   matchesMedicineQuery,
   calculateMedicineMargin,
+  SeviorSubCategory,
+  matchesSeviorSubCategory,
 } from '../lib/medicineSearch';
 
 export type SortOption =
@@ -16,6 +18,7 @@ export type SortOption =
   | 'recent';
 
 export type PriceFilter = 'all' | 'under100' | '100to300' | 'above300';
+export type { SeviorSubCategory };
 
 export function useMedicines() {
   const [medicines, setMedicines] = useState<Medicine[]>([]);
@@ -23,6 +26,7 @@ export function useMedicines() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeCategory, setActiveCategory] = useState<string>('All');
+  const [seviorSubCategory, setSeviorSubCategory] = useState<SeviorSubCategory>('all');
   const [sortOption, setSortOption] = useState<SortOption>('name_asc');
   const [priceFilter, setPriceFilter] = useState<PriceFilter>('all');
 
@@ -59,8 +63,8 @@ export function useMedicines() {
     return medicineService.getPriceHistory(medicineId);
   };
 
-  const bulkImport = async (previews: ImportedMedicinePreview[]): Promise<number> => {
-    const count = await medicineService.bulkImportMedicines(previews);
+  const bulkImport = async (previews: ImportedMedicinePreview[], clearExisting = true): Promise<number> => {
+    const count = await medicineService.bulkImportMedicines(previews, clearExisting);
     await fetchMedicines();
     return count;
   };
@@ -83,6 +87,7 @@ export function useMedicines() {
       'HAIRFLU KIT',
       'SERUM',
       'GENERAL RANGE',
+      'FLUENT SEVIOR',
     ];
 
     categories.forEach((cat) => {
@@ -92,12 +97,34 @@ export function useMedicines() {
     return counts;
   }, [globalSearchMatches]);
 
+  // Dynamic Sub-Category Counts for FLUENT SEVIOR
+  const seviorSubCounts = useMemo(() => {
+    const seviorMedicines = globalSearchMatches.filter((m) =>
+      matchesMedicineCategory(m, 'FLUENT SEVIOR')
+    );
+
+    return {
+      all: seviorMedicines.length,
+      tab_cap: seviorMedicines.filter((m) => matchesSeviorSubCategory(m, 'tab_cap')).length,
+      syp_powder: seviorMedicines.filter((m) => matchesSeviorSubCategory(m, 'syp_powder')).length,
+      oil_gel: seviorMedicines.filter((m) => matchesSeviorSubCategory(m, 'oil_gel')).length,
+      injection: seviorMedicines.filter((m) => matchesSeviorSubCategory(m, 'injection')).length,
+    };
+  }, [globalSearchMatches]);
+
   // 3. Filtered medicines
   const filteredMedicines = useMemo(() => {
     return medicines.filter((m) => {
       // Category filter
       if (!matchesMedicineCategory(m, activeCategory)) {
         return false;
+      }
+
+      // FLUENT SEVIOR Sub-Category filter
+      if (activeCategory === 'FLUENT SEVIOR' && seviorSubCategory !== 'all') {
+        if (!matchesSeviorSubCategory(m, seviorSubCategory)) {
+          return false;
+        }
       }
 
       // Query Search filter (multi-keyword tokenized)
@@ -113,7 +140,7 @@ export function useMedicines() {
 
       return true;
     });
-  }, [medicines, activeCategory, searchQuery, priceFilter]);
+  }, [medicines, activeCategory, seviorSubCategory, searchQuery, priceFilter]);
 
   // 4. Sorted medicines
   const sortedMedicines = useMemo(() => {
@@ -196,6 +223,9 @@ export function useMedicines() {
     setSearchQuery,
     activeCategory,
     setActiveCategory,
+    seviorSubCategory,
+    setSeviorSubCategory,
+    seviorSubCounts,
     sortOption,
     setSortOption,
     priceFilter,
