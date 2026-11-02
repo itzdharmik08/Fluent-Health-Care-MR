@@ -2,15 +2,22 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { backupService } from '../services/backupService';
 import { BackupConfig, BackupRecord } from '../types/backup';
 
+export interface BackupNotification {
+  id?: string;
+  backupId?: string;
+  type: string;
+  label?: string;
+  timestamp: string;
+  summary?: any;
+  savedToDevice?: boolean;
+  savedToDb?: boolean;
+  backupRecord?: BackupRecord;
+}
+
 export function useAutoBackup() {
   const [config, setConfig] = useState<BackupConfig>(() => backupService.getConfig());
   const [isBackingUp, setIsBackingUp] = useState(false);
-  const [lastNotification, setLastNotification] = useState<{
-    id: string;
-    type: string;
-    timestamp: string;
-    summary: any;
-  } | null>(null);
+  const [lastNotification, setLastNotification] = useState<BackupNotification | null>(null);
 
   const isRunningRef = useRef(false);
 
@@ -55,7 +62,7 @@ export function useAutoBackup() {
     };
   }, [checkSchedule]);
 
-  const triggerInstantBackup = async (label?: string, download: boolean = true): Promise<BackupRecord> => {
+  const triggerInstantBackup = async (label?: string, download: boolean = false): Promise<BackupRecord> => {
     setIsBackingUp(true);
     try {
       const record = await backupService.captureFullBackup('manual', label, download);

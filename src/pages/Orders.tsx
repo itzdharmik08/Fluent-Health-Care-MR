@@ -156,20 +156,6 @@ export const Orders: React.FC = () => {
       text += `(No items listed)\n`;
     }
 
-    const specialDisc = parseSpecialDiscount(order.notes);
-    const totals = CalculationsEngine.calculateOrderTotals(validItems, specialDisc);
-
-    text += `\n📊 *Invoice & Tax Breakdown:*\n`;
-    text += `💵 *Taxable Amount:* ${formatINR(totals.taxable_amount)}\n`;
-    text += `🏛️ *CGST:* ${formatINR(totals.cgst_amount)}\n`;
-    text += `🏢 *SGST:* ${formatINR(totals.sgst_amount)}\n`;
-    text += `🧾 *Total GST (CGST + SGST):* ${formatINR(totals.gst_amount)}\n`;
-    if (totals.round_off !== 0) {
-      text += `⚖️ *Round Off (ROff):* ${totals.round_off >= 0 ? '+' : ''}${formatINR(totals.round_off)}\n`;
-    }
-    text += `💰 *Final Payable Amount:* ${formatINR(totals.total_amount)}\n`;
-    text += `📌 *Payment Status:* ${order.payment_status.toUpperCase()} (${order.payment_mode})\n`;
-
     return text.trimEnd();
   };
 

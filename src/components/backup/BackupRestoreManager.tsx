@@ -91,10 +91,9 @@ export const BackupRestoreManager: React.FC = () => {
   ) => {
     setIsBackingUp(true);
     try {
-      const record = await backupService.captureFullBackup(type, customLabel, true);
+      const record = await backupService.captureFullBackup(type, customLabel, false);
       await loadBackups();
       setConfig(backupService.getConfig());
-      alert(`Success! Backup snapshot "${record.label}" has been exported into JSON and saved into the vault.`);
     } catch (err: any) {
       console.error('Instant backup failed:', err);
       alert(`Backup failed: ${err.message || 'Unknown error'}`);
@@ -295,9 +294,7 @@ CREATE POLICY "Users can delete their backups" ON public.system_backups FOR DELE
             </span>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            {config.autoDownloadJson
-              ? 'Automatically captures snapshot & triggers JSON export nightly.'
-              : 'Captures snapshot quietly into internal backup vault.'}
+            Nightly snapshot secured in vault & cloud; prompts to download JSON or choose later.
           </p>
         </div>
 
@@ -416,12 +413,12 @@ CREATE POLICY "Users can delete their backups" ON public.system_backups FOR DELE
               </p>
             </div>
 
-            {/* Auto Download JSON Toggle */}
+            {/* Download Prompt Toggle */}
             <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 border border-slate-200/70">
               <div>
-                <label className="font-bold text-slate-800 block">Export & Download JSON File</label>
+                <label className="font-bold text-slate-800 block">Prompt to Download JSON</label>
                 <span className="text-[11px] text-slate-400">
-                  Automatically prompt/download .json file to device
+                  When backup is ready, ask whether to download JSON now or continue later
                 </span>
               </div>
               <input

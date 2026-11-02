@@ -14,7 +14,8 @@ const CONFIG_STORAGE_KEY = 'apex_mr_backup_config';
 const DEFAULT_CONFIG: BackupConfig = {
   autoBackupEnabled: true,
   scheduledTime: '00:00', // 12:00 AM midnight
-  autoDownloadJson: true,
+  autoDownloadJson: false, // Automatic background download is removed; user will be prompted to download or choose later
+  promptDownloadOnBackup: true,
   retentionDays: 30,
   lastBackupDate: undefined,
   lastBackupTimestamp: undefined,
@@ -78,12 +79,50 @@ export const backupService = {
   },
 
   /**
+   * Download a backup by its ID from local vault or remote database
+   */
+  async downloadBackupById(id: string): Promise<boolean> {
+    try {
+      // 1. Check local IndexedDB vault first
+      const local = await backupDb.getBackupById(id);
+      if (local) {
+        this.downloadBackupJson(local);
+        return true;
+      }
+
+      // 2. Fall back to Supabase remote backup table
+      const { data, error } = await supabase
+        .from('system_backups')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (!error && data) {
+        const rec: BackupRecord = {
+          id: data.id,
+          timestamp: data.created_at || new Date().toISOString(),
+          type: data.type || 'manual',
+          label: data.label || 'Backup',
+          sizeBytes: Number(data.size_bytes) || 0,
+          metadata: data.metadata,
+          data: data.data,
+        };
+        this.downloadBackupJson(rec);
+        return true;
+      }
+    } catch (err) {
+      console.warn('Failed to download backup by ID:', err);
+    }
+    return false;
+  },
+
+  /**
    * Capture a full backup snapshot of the system
    */
   async captureFullBackup(
     type: BackupType = 'manual',
     label?: string,
-    triggerDownload: boolean = true
+    triggerDownload: boolean = false
   ): Promise<BackupRecord> {
     await authService.ensureUserProfile();
     const { data: { user } } = await supabase.auth.getUser();
@@ -266,12 +305,15 @@ export const backupService = {
     window.dispatchEvent(
       new CustomEvent('mr_backup_completed', {
         detail: {
+          id: backupId,
           backupId,
           type,
+          label: backupPayload.label,
           summary,
           timestamp: nowIso,
           savedToDevice: true,
           savedToDb: savedToCloudDb,
+          backupRecord: backupPayload,
         },
       })
     );
@@ -616,7 +658,7 @@ export const backupService = {
         await this.captureFullBackup(
           'auto_midnight',
           `Automated 12:00 AM Daily Backup (${todayDateStr})`,
-          config.autoDownloadJson
+          false // Never auto-download file silently; prompt user to download or choose later
         );
         return true;
       }

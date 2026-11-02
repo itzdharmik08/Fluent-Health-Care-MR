@@ -62,6 +62,7 @@ export interface BackupConfig {
   autoBackupEnabled: boolean;
   scheduledTime: string; // e.g. "00:00" for 12:00 AM midnight
   autoDownloadJson: boolean;
+  promptDownloadOnBackup?: boolean;
   retentionDays: number;
   lastBackupDate?: string; // "YYYY-MM-DD"
   lastBackupTimestamp?: string;
