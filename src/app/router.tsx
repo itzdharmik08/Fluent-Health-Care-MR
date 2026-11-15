@@ -84,6 +84,7 @@ export const router = createBrowserRouter([
           { path: 'orders', element: <Orders /> },
           { path: 'orders/new', element: <NewOrder /> },
           { path: 'orders/edit/:orderId', element: <NewOrder /> },
+          { path: 'monthly', element: <Navigate to="/orders?filter=monthly" replace /> },
           { path: 'import', element: <ImportMedicines /> },
           { path: 'backup', element: <Navigate to="/settings?tab=backup" replace /> },
           { path: 'settings', element: <SettingsPage /> },

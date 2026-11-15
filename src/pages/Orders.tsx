@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useOrders } from '../hooks/useOrders';
 import { useDoctors } from '../hooks/useDoctors';
@@ -8,6 +8,8 @@ import { CalculationsEngine } from '../lib/calculations';
 import { orderService } from '../services/orderService';
 import { formatINR, formatDate, formatDateTime } from '../lib/formatters';
 import { copyTextToClipboard } from '../lib/utils';
+import { calculateMonthlySales, getOrderYearMonth } from '../lib/monthlySales';
+import { MonthWiseSalesSection } from '../components/analytics/MonthWiseSalesSection';
 import {
   Plus,
   Search,
@@ -28,6 +30,7 @@ import {
   Share2,
   Copy,
   Check,
+  Calendar,
   Sparkles,
   Tag,
   Trash2,
@@ -71,13 +74,17 @@ export const Orders: React.FC = () => {
   const [isSyncingPrices, setIsSyncingPrices] = useState(false);
 
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'doctor_grouped' | 'overdue' | 'pending' | 'paid'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'monthly_summary' | 'doctor_grouped' | 'overdue' | 'pending' | 'paid'>('all');
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>('all');
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('all');
   const [expandedDoctors, setExpandedDoctors] = useState<Record<string, boolean>>({});
   const [copiedOrderId, setCopiedOrderId] = useState<string | null>(null);
   const [copyToast, setCopyToast] = useState<string | null>(null);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  // Calculate monthly analytics from orders
+  const monthlyAnalytics = useMemo(() => calculateMonthlySales(orders), [orders]);
 
   // WhatsApp Direct Dispatch Number Configuration
   const [whatsappConfigModalOpen, setWhatsappConfigModalOpen] = useState(false);
@@ -90,12 +97,19 @@ export const Orders: React.FC = () => {
   });
   const [pendingShareOrder, setPendingShareOrder] = useState<Order | null>(null);
 
-  // Sync active tab with URL parameter if present
+  // Sync active tab & month filter with URL parameter if present
   useEffect(() => {
     const filter = searchParams.get('filter');
     if (filter === 'overdue') setActiveTab('overdue');
     else if (filter === 'doctor') setActiveTab('doctor_grouped');
     else if (filter === 'pending') setActiveTab('pending');
+    else if (filter === 'monthly') setActiveTab('monthly_summary');
+
+    const monthParam = searchParams.get('month');
+    if (monthParam) {
+      setSelectedMonthFilter(monthParam);
+      setActiveTab('all');
+    }
   }, [searchParams]);
 
   // Generate simplified text summary for a SINGLE order
@@ -340,6 +354,12 @@ export const Orders: React.FC = () => {
   >();
 
   orders.forEach((o) => {
+    // Respect active month filter when grouping by doctor
+    if (selectedMonthFilter !== 'all') {
+      const ym = getOrderYearMonth(o.order_date);
+      if (!ym || ym.monthKey !== selectedMonthFilter) return;
+    }
+
     const docId = o.doctor_id || o.doctor?.id || 'unknown';
     const docName = o.doctor?.doctor_name || 'Unassigned Doctor';
     const clinicName = o.doctor?.clinic_name || 'Clinic';
@@ -376,15 +396,21 @@ export const Orders: React.FC = () => {
 
   const doctorGroupsArray = Array.from(doctorGroupMap.values());
 
-  // Filter orders according to activeTab & selectedDoctorFilter
+  // Filter orders according to activeTab, selectedDoctorFilter & selectedMonthFilter
   const filteredOrders = orders.filter((o) => {
-    // 1. Doctor Selector Filter
+    // 1. Month Selector Filter
+    if (selectedMonthFilter !== 'all') {
+      const ym = getOrderYearMonth(o.order_date);
+      if (!ym || ym.monthKey !== selectedMonthFilter) return false;
+    }
+
+    // 2. Doctor Selector Filter
     if (selectedDoctorFilter !== 'all') {
       const docId = o.doctor_id || o.doctor?.id;
       if (docId !== selectedDoctorFilter) return false;
     }
 
-    // 2. Tab Filter
+    // 3. Tab Filter
     if (activeTab === 'overdue') {
       return getOverdueInfo(o.order_date, o.payment_status).isOverdue;
     }
@@ -396,6 +422,12 @@ export const Orders: React.FC = () => {
     }
     return true;
   });
+
+  // Aggregated totals for the active month selection
+  const selectedMonthSummary = monthlyAnalytics.months.find((m) => m.monthKey === selectedMonthFilter);
+  const selectedMonthTotal = filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
+  const selectedMonthPaid = filteredOrders.filter((o) => o.payment_status === 'paid').reduce((sum, o) => sum + (o.total_amount || 0), 0);
+  const selectedMonthPending = filteredOrders.filter((o) => o.payment_status === 'pending').reduce((sum, o) => sum + (o.total_amount || 0), 0);
 
   // Filter doctor groups according to search / filter
   const filteredDoctorGroups = doctorGroupsArray.filter((g) => {
@@ -543,6 +575,18 @@ export const Orders: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveTab('monthly_summary')}
+            className={`whitespace-nowrap rounded-xl px-4 py-2 text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              activeTab === 'monthly_summary'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <Calendar className="h-3.5 w-3.5" />
+            <span>Month-Wise Selling</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('doctor_grouped')}
             className={`whitespace-nowrap rounded-xl px-4 py-2 text-xs font-semibold transition-all flex items-center gap-1.5 ${
               activeTab === 'doctor_grouped'
@@ -589,7 +633,7 @@ export const Orders: React.FC = () => {
           </button>
         </div>
 
-        {/* Search & Doctor Dropdown Bar */}
+        {/* Search, Month Dropdown & Doctor Dropdown Bar */}
         <div className="flex flex-col sm:flex-row items-center gap-3">
           {/* Search Input Bar */}
           <div className="relative flex-1 w-full">
@@ -603,8 +647,41 @@ export const Orders: React.FC = () => {
             />
           </div>
 
+          {/* Month Filter Dropdown */}
+          <div className="w-full sm:w-56">
+            <select
+              value={selectedMonthFilter}
+              onChange={(e) => {
+                setSelectedMonthFilter(e.target.value);
+                if (activeTab === 'monthly_summary') setActiveTab('all');
+              }}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none shadow-2xs"
+            >
+              <option value="all">📅 All Months (Lifetime)</option>
+              <option value={monthlyAnalytics.currentMonth.monthKey}>
+                🟢 Current Month: {monthlyAnalytics.currentMonth.monthLabel}
+              </option>
+              <option value={monthlyAnalytics.lastMonth.monthKey}>
+                ⚪ Past Month: {monthlyAnalytics.lastMonth.monthLabel}
+              </option>
+              {monthlyAnalytics.months.filter(
+                (m) => !m.isCurrentMonth && !m.isLastMonth && m.ordersCount > 0
+              ).length > 0 && (
+                <optgroup label="Past Months">
+                  {monthlyAnalytics.months
+                    .filter((m) => !m.isCurrentMonth && !m.isLastMonth && m.ordersCount > 0)
+                    .map((m) => (
+                      <option key={m.monthKey} value={m.monthKey}>
+                        {m.monthLabel} ({m.ordersCount} {m.ordersCount === 1 ? 'order' : 'orders'})
+                      </option>
+                    ))}
+                </optgroup>
+              )}
+            </select>
+          </div>
+
           {/* Doctor Filter Dropdown */}
-          <div className="w-full sm:w-64">
+          <div className="w-full sm:w-60">
             <select
               value={selectedDoctorFilter}
               onChange={(e) => setSelectedDoctorFilter(e.target.value)}
@@ -622,10 +699,44 @@ export const Orders: React.FC = () => {
             </select>
           </div>
         </div>
+
+        {/* Active Month Filter Notification Banner */}
+        {selectedMonthFilter !== 'all' && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-2xl bg-indigo-50/90 border border-indigo-200/90 p-3.5 shadow-2xs text-xs">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold shrink-0">
+                <Calendar className="h-4 w-4" />
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="font-bold text-indigo-950 text-xs sm:text-sm">
+                  Filtered by Month: {selectedMonthSummary?.monthLabel || selectedMonthFilter}
+                </span>
+                <span className="text-indigo-300 hidden sm:inline">|</span>
+                <span className="font-bold text-indigo-700">
+                  Total Sales: {formatINR(selectedMonthTotal)}
+                </span>
+                <span className="text-indigo-300 hidden sm:inline">•</span>
+                <span className="text-slate-600">
+                  {filteredOrders.length} {filteredOrders.length === 1 ? 'order' : 'orders'} (Paid: {formatINR(selectedMonthPaid)} • Pending: {formatINR(selectedMonthPending)})
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setSelectedMonthFilter('all')}
+              className="inline-flex items-center justify-center gap-1 self-start sm:self-auto rounded-lg bg-white border border-indigo-200 px-3 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-100/60 shadow-2xs transition-all"
+            >
+              <X className="h-3 w-3" />
+              <span>Show All Months</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* VIEW MODE 1: Grouped by Doctor View */}
-      {activeTab === 'doctor_grouped' ? (
+      {/* VIEW MODES */}
+      {activeTab === 'monthly_summary' ? (
+        <MonthWiseSalesSection orders={orders} />
+      ) : activeTab === 'doctor_grouped' ? (
         <div className="space-y-4">
           {filteredDoctorGroups.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center text-xs text-slate-400">
